@@ -91,6 +91,7 @@ echo   [OK] Virtual Environment พร้อมใช้งาน
 echo [5/7] ติดตั้ง Dependencies (อาจใช้เวลาสักครู่)...
 call venv\Scripts\activate.bat
 python -m pip install --upgrade pip --quiet
+set PYTHONUTF8=1
 pip install -r requirements.txt --quiet
 if %errorlevel% neq 0 (
     echo   [ERROR] ไม่สามารถติดตั้ง Dependencies ได้
