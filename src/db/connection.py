@@ -114,3 +114,67 @@ class DatabaseConnection:
             DatabaseConnection._engine = None
             DatabaseConnection._SessionLocal = None
             console.print("[green]✓[/green] ปิดการเชื่อมต่อฐานข้อมูลสำเร็จ")
+
+
+# Global instance สำหรับใช้งานทั่วไป
+_db_connection: DatabaseConnection | None = None
+
+
+def init_db(db_path: str = "data/youtube_assistant.db", echo: bool = False) -> Engine:
+    """
+    Initialize ฐานข้อมูลและสร้าง tables
+    
+    Args:
+        db_path: path ไปยังไฟล์ฐานข้อมูล
+        echo: แสดง SQL queries หรือไม่
+        
+    Returns:
+        SQLAlchemy Engine
+    """
+    global _db_connection
+    db_url = f"sqlite:///{db_path}"
+    _db_connection = DatabaseConnection(db_url, echo=echo)
+    _db_connection.create_tables()
+    return _db_connection.get_engine()
+
+
+def reset_db(db_path: str = "data/youtube_assistant.db"):
+    """
+    รีเซ็ตฐานข้อมูล (ลบและสร้างใหม่)
+    
+    Args:
+        db_path: path ไปยังไฟล์ฐานข้อมูล
+    """
+    global _db_connection
+    db_url = f"sqlite:///{db_path}"
+    _db_connection = DatabaseConnection(db_url)
+    _db_connection.reset_database()
+
+
+def get_engine() -> Engine:
+    """
+    ดึง engine ปัจจุบัน
+    
+    Returns:
+        SQLAlchemy Engine
+    """
+    global _db_connection
+    if _db_connection is None:
+        raise RuntimeError("ยังไม่ได้ initialize ฐานข้อมูล - เรียก init_db() ก่อน")
+    return _db_connection.get_engine()
+
+
+@contextmanager
+def session_scope() -> Generator[Session, None, None]:
+    """
+    Context manager สำหรับจัดการ database session
+    
+    Yields:
+        SQLAlchemy Session
+    """
+    global _db_connection
+    if _db_connection is None:
+        raise RuntimeError("ยังไม่ได้ initialize ฐานข้อมูล - เรียก init_db() ก่อน")
+    
+    with _db_connection.session_scope() as session:
+        yield session

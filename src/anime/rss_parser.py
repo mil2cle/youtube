@@ -24,30 +24,35 @@ console = Console()
 
 
 # Whitelisted RSS sources พร้อม reliability score
+# enabled: True = ใช้งานได้, False = ปิดการใช้งาน (เช่น URL ไม่ทำงาน)
 RSS_SOURCES = {
     "ann": {
         "name": "Anime News Network",
         "url": "https://www.animenewsnetwork.com/all/rss.xml",
         "reliability_score": 0.95,
         "category": "news",
+        "enabled": True,
     },
     "ann_interest": {
         "name": "ANN Interest",
         "url": "https://www.animenewsnetwork.com/interest/rss.xml",
         "reliability_score": 0.90,
         "category": "interest",
+        "enabled": True,
     },
     "crunchyroll": {
         "name": "Crunchyroll News",
         "url": "https://www.crunchyroll.com/newsrss",
         "reliability_score": 0.90,
         "category": "news",
+        "enabled": False,  # ปิดการใช้งาน: URL ไม่พร้อมใช้งาน (404) ตั้งแต่ 2024
     },
     "mal_news": {
         "name": "MyAnimeList News",
         "url": "https://myanimelist.net/rss/news.xml",
         "reliability_score": 0.85,
         "category": "news",
+        "enabled": True,
     },
 }
 
@@ -260,6 +265,12 @@ class RSSFeedParser:
             return []
         
         source = self.sources[source_key]
+        
+        # ตรวจสอบว่าแหล่งนี้เปิดใช้งานหรือไม่
+        if not source.get("enabled", True):
+            console.print(f"[yellow]⚠️ ข้าม {source['name']}: แหล่งนี้ถูกปิดการใช้งาน (disabled)[/yellow]")
+            return []
+        
         console.print(f"[cyan]📰 กำลังดึงข่าวจาก {source['name']}...[/cyan]")
         
         try:
@@ -296,13 +307,20 @@ class RSSFeedParser:
             return filtered_items
             
         except requests.exceptions.Timeout:
-            console.print(f"[red]❌ Timeout: {source['name']}[/red]")
+            console.print(f"[yellow]⚠️ คำเตือน: การเชื่อมต่อ {source['name']} หมดเวลา (timeout) - ข้ามแหล่งนี้และดำเนินการต่อ[/yellow]")
+            return []
+        except requests.exceptions.HTTPError as e:
+            status_code = e.response.status_code if e.response is not None else 'N/A'
+            console.print(f"[yellow]⚠️ คำเตือน: {source['name']} ตอบกลับ HTTP {status_code} - ข้ามแหล่งนี้และดำเนินการต่อ[/yellow]")
             return []
         except requests.exceptions.RequestException as e:
-            console.print(f"[red]❌ Request Error ({source['name']}): {e}[/red]")
+            console.print(f"[yellow]⚠️ คำเตือน: ไม่สามารถเชื่อมต่อ {source['name']} ได้ ({type(e).__name__}) - ข้ามแหล่งนี้และดำเนินการต่อ[/yellow]")
+            return []
+        except ET.ParseError as e:
+            console.print(f"[yellow]⚠️ คำเตือน: ไม่สามารถแปลง XML จาก {source['name']} ได้ - ข้ามแหล่งนี้และดำเนินการต่อ[/yellow]")
             return []
         except Exception as e:
-            console.print(f"[red]❌ Error ({source['name']}): {e}[/red]")
+            console.print(f"[yellow]⚠️ คำเตือน: เกิดข้อผิดพลาดกับ {source['name']} ({type(e).__name__}: {e}) - ข้ามแหล่งนี้และดำเนินการต่อ[/yellow]")
             return []
     
     def fetch_all_sources(
@@ -310,9 +328,9 @@ class RSSFeedParser:
         days: int = 7,
         limit_per_source: Optional[int] = None,
         sources: Optional[List[str]] = None
-    ) -> List[RSSItem]:
+    ) -> tuple[List[RSSItem], Dict[str, Any]]:
         """
-        ดึงข่าวจากทุกแหล่ง RSS
+        ดึงข่าวจากทุกแหล่ง RSS (แบบ fail-open)
         
         Args:
             days: จำนวนวันย้อนหลังที่ต้องการ
@@ -320,16 +338,40 @@ class RSSFeedParser:
             sources: รายการแหล่งที่ต้องการ (ถ้าไม่ระบุจะดึงทั้งหมด)
             
         Returns:
-            รายการข่าวจากทุกแหล่ง
+            tuple: (รายการข่าว, สถิติการดึงข้อมูล)
         """
         all_items = []
         source_keys = sources or list(self.sources.keys())
         
-        console.print(f"[cyan]📰 กำลังดึงข่าวจาก {len(source_keys)} แหล่ง...[/cyan]")
+        # สถิติการดึงข้อมูล
+        stats = {
+            "total_sources": len(source_keys),
+            "successful_sources": 0,
+            "failed_sources": 0,
+            "skipped_sources": 0,
+            "source_details": {},
+        }
         
-        for source_key in source_keys:
+        # กรองเฉพาะแหล่งที่เปิดใช้งาน
+        enabled_sources = [k for k in source_keys if self.sources.get(k, {}).get("enabled", True)]
+        disabled_sources = [k for k in source_keys if not self.sources.get(k, {}).get("enabled", True)]
+        
+        stats["skipped_sources"] = len(disabled_sources)
+        for key in disabled_sources:
+            stats["source_details"][key] = {"status": "disabled", "items": 0}
+        
+        console.print(f"[cyan]📰 กำลังดึงข่าวจาก {len(enabled_sources)} แหล่ง (ข้าม {len(disabled_sources)} แหล่งที่ปิดใช้งาน)...[/cyan]")
+        
+        for source_key in enabled_sources:
             items = self.fetch_source(source_key, days=days, limit=limit_per_source)
-            all_items.extend(items)
+            
+            if items:
+                all_items.extend(items)
+                stats["successful_sources"] += 1
+                stats["source_details"][source_key] = {"status": "success", "items": len(items)}
+            else:
+                stats["failed_sources"] += 1
+                stats["source_details"][source_key] = {"status": "failed", "items": 0}
         
         # Sort by published date (newest first)
         all_items.sort(
@@ -337,9 +379,16 @@ class RSSFeedParser:
             reverse=True
         )
         
-        console.print(f"[green]✅ ดึงข่าวทั้งหมดสำเร็จ: {len(all_items)} รายการ[/green]")
+        # แสดงสรุปผล
+        if stats["successful_sources"] > 0:
+            console.print(f"[green]✅ ดึงข่าวสำเร็จ: {len(all_items)} รายการ จาก {stats['successful_sources']}/{len(enabled_sources)} แหล่ง[/green]")
+        else:
+            console.print(f"[red]❌ ไม่สามารถดึงข้อมูลจากแหล่งใดได้เลย[/red]")
         
-        return all_items
+        if stats["failed_sources"] > 0:
+            console.print(f"[yellow]⚠️ แหล่งที่ล้มเหลว: {stats['failed_sources']} แหล่ง[/yellow]")
+        
+        return all_items, stats
     
     def get_available_sources(self) -> Dict[str, Dict]:
         """คืนค่ารายการแหล่ง RSS ที่รองรับ"""

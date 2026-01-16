@@ -376,22 +376,38 @@ def main():
             if args.model in ['linear', 'ridge']:
                 args.model = 'logistic'
             
-            results = trainer.fit_classification(
-                df,
-                target=args.target,
-                model_type=args.model,
-                max_depth=args.max_depth,
-            )
+            # Only pass max_depth for tree-based models
+            if args.model in ['tree', 'forest']:
+                results = trainer.fit_classification(
+                    df,
+                    target=args.target,
+                    model_type=args.model,
+                    max_depth=args.max_depth,
+                )
+            else:
+                results = trainer.fit_classification(
+                    df,
+                    target=args.target,
+                    model_type=args.model,
+                )
         else:
             if args.model == 'logistic':
                 args.model = 'linear'
             
-            results = trainer.fit_regression(
-                df,
-                target=args.target,
-                model_type=args.model,
-                max_depth=args.max_depth,
-            )
+            # Only pass max_depth for tree-based models
+            if args.model in ['tree', 'forest']:
+                results = trainer.fit_regression(
+                    df,
+                    target=args.target,
+                    model_type=args.model,
+                    max_depth=args.max_depth,
+                )
+            else:
+                results = trainer.fit_regression(
+                    df,
+                    target=args.target,
+                    model_type=args.model,
+                )
         
         # Generate rules
         console.print("\n[cyan]📋 กำลังสร้างกฎภาษาไทย...[/cyan]")
