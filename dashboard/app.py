@@ -95,6 +95,7 @@ def render_sidebar():
         "เมนู",
         [
             "🏠 หน้าหลัก",
+            "🔄 Actions / Sync",
             "📊 YouTube Analytics",
             "📈 Performance Trends",
             "💡 Content Ideas",
@@ -888,6 +889,224 @@ def render_run_logs_page():
             st.success("ไม่มี failed runs!")
 
 
+def render_actions_page():
+    """
+    Render Actions/Sync page - หน้าสำหรับรัน tasks ทั้งหมดผ่าน GUI
+    """
+    st.header("🔄 Actions / Sync")
+    st.markdown("รันงานต่างๆ ผ่าน Dashboard โดยไม่ต้องใช้ Command Line")
+    
+    # Import service layer
+    try:
+        from src.services.tasks import (
+            sync_youtube_videos,
+            sync_youtube_metrics,
+            fetch_anime_research,
+            train_playbook,
+            check_youtube_oauth,
+            is_task_running,
+            get_recent_runs,
+            get_app_log,
+        )
+        service_available = True
+    except ImportError as e:
+        st.error(f"ไม่สามารถโหลด Service Layer: {e}")
+        service_available = False
+        return
+    
+    # YouTube OAuth Status
+    st.subheader("🔑 สถานะ YouTube OAuth")
+    
+    oauth_status = check_youtube_oauth()
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if oauth_status["has_credentials_file"]:
+            st.success("✅ พบไฟล์ Credentials")
+        else:
+            st.error("❌ ไม่พบไฟล์ Credentials")
+    
+    with col2:
+        if oauth_status["is_authenticated"]:
+            st.success("✅ Authenticated")
+        else:
+            st.warning("⚠️ ยังไม่ได้ Authenticate")
+    
+    with col3:
+        if oauth_status["channel_name"]:
+            st.info(f"🎬 {oauth_status['channel_name']}")
+        else:
+            st.info("🎬 -")
+    
+    if oauth_status.get("instructions"):
+        with st.expander("📖 วิธีตั้งค่า YouTube OAuth"):
+            st.markdown(oauth_status["instructions"])
+    
+    st.markdown("---")
+    
+    # Task Buttons
+    st.subheader("🚀 รันงาน")
+    
+    # Initialize session state for task results
+    if "task_result" not in st.session_state:
+        st.session_state.task_result = None
+    if "task_running" not in st.session_state:
+        st.session_state.task_running = False
+    
+    # YouTube Sync Section
+    st.markdown("### 🎥 YouTube Data")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("**Sync Videos**")
+        st.caption("ดึงข้อมูลวิดีโอทั้งหมดจากช่องของคุณ")
+        
+        if not oauth_status["is_authenticated"]:
+            st.warning("ต้อง authenticate ก่อน")
+            sync_videos_disabled = True
+        else:
+            sync_videos_disabled = is_task_running("sync_videos")
+        
+        if st.button("🔄 Sync Videos", disabled=sync_videos_disabled, key="btn_sync_videos"):
+            with st.spinner("กำลังดึงข้อมูลวิดีโอ..."):
+                result = sync_youtube_videos()
+                st.session_state.task_result = result
+            
+            if result.success:
+                st.success(result.message)
+            else:
+                st.error(f"ล้มเหลว: {result.error_message}")
+    
+    with col2:
+        st.markdown("**Sync Metrics**")
+        st.caption("ดึงข้อมูล Analytics (views, CTR, watch time)")
+        
+        days_options = {"7 วัน": 7, "30 วัน": 30, "90 วัน": 90}
+        selected_days = st.selectbox("ช่วงเวลา", list(days_options.keys()), index=1, key="metrics_days")
+        
+        if not oauth_status["is_authenticated"]:
+            sync_metrics_disabled = True
+        else:
+            sync_metrics_disabled = is_task_running("sync_metrics")
+        
+        if st.button("📊 Sync Metrics", disabled=sync_metrics_disabled, key="btn_sync_metrics"):
+            with st.spinner(f"กำลังดึง metrics {selected_days}..."):
+                result = sync_youtube_metrics(days=days_options[selected_days])
+                st.session_state.task_result = result
+            
+            if result.success:
+                st.success(result.message)
+            else:
+                st.error(f"ล้มเหลว: {result.error_message}")
+    
+    st.markdown("---")
+    
+    # Research Section
+    st.markdown("### 🔬 Anime Research")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("**Fetch Research Data**")
+        st.caption("ดึงข้อมูลจาก AniList และ RSS feeds")
+        
+        fetch_all = st.checkbox("ดึงทั้งหมด (ไม่จำกัด 7 วัน)", value=True, key="fetch_all_research")
+        link_entities = st.checkbox("เชื่อมโยง Entities", value=True, key="link_entities")
+        
+        research_disabled = is_task_running("fetch_research")
+        
+        if st.button("🔬 Fetch Research", disabled=research_disabled, key="btn_fetch_research"):
+            with st.spinner("กำลังดึงข้อมูล Research..."):
+                result = fetch_anime_research(fetch_all=fetch_all, link_entities=link_entities)
+                st.session_state.task_result = result
+            
+            if result.success:
+                st.success(result.message)
+            else:
+                st.error(f"ล้มเหลว: {result.error_message}")
+    
+    with col2:
+        st.markdown("**Train Playbook**")
+        st.caption("ฝึก ML Model และสร้างกฎ")
+        
+        save_rules = st.checkbox("บันทึกกฎลงฐานข้อมูล", value=True, key="save_rules")
+        
+        playbook_disabled = is_task_running("train_playbook")
+        
+        if st.button("🧠 Train Playbook", disabled=playbook_disabled, key="btn_train_playbook"):
+            with st.spinner("กำลัง training..."):
+                result = train_playbook(save_rules=save_rules)
+                st.session_state.task_result = result
+            
+            if result.success:
+                st.success(result.message)
+            else:
+                st.error(f"ล้มเหลว: {result.error_message}")
+    
+    st.markdown("---")
+    
+    # Last Task Result
+    if st.session_state.task_result:
+        st.subheader("📋 ผลลัพธ์ล่าสุด")
+        
+        result = st.session_state.task_result
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            status = "✅ สำเร็จ" if result.success else "❌ ล้มเหลว"
+            st.metric("สถานะ", status)
+        
+        with col2:
+            st.metric("เวลา", f"{result.duration_seconds:.1f} วินาที")
+        
+        with col3:
+            st.metric("เพิ่มใหม่", result.inserted_new)
+        
+        with col4:
+            st.metric("อัพเดท", result.updated_existing)
+        
+        if result.error_message:
+            with st.expander("❌ รายละเอียด Error"):
+                st.error(result.error_message)
+                if result.error_traceback:
+                    st.code(result.error_traceback)
+        
+        if result.details:
+            with st.expander("📊 รายละเอียดเพิ่มเติม"):
+                st.json(result.details)
+    
+    st.markdown("---")
+    
+    # Recent Runs
+    st.subheader("📜 ประวัติการรันล่าสุด")
+    
+    recent_runs = get_recent_runs(limit=10)
+    
+    if recent_runs:
+        run_data = []
+        for run in recent_runs:
+            run_data.append({
+                "Type": run["run_type"],
+                "Status": "✅" if run["status"] == "completed" else "❌" if run["status"] == "failed" else "🔄",
+                "Started": run["started_at"].strftime("%d/%m %H:%M") if run["started_at"] else "-",
+                "Duration": f"{run['duration_seconds']:.1f}s" if run["duration_seconds"] else "-",
+                "Items": f"{run['items_succeeded']}/{run['items_processed']}" if run["items_processed"] else "-",
+                "Triggered By": run["triggered_by"] or "-",
+            })
+        st.dataframe(pd.DataFrame(run_data), use_container_width=True, hide_index=True)
+    else:
+        st.info("ยังไม่มีประวัติการรัน")
+    
+    # App Log
+    with st.expander("📝 Application Log"):
+        log_lines = st.slider("จำนวนบรรทัด", 50, 500, 100, key="log_lines")
+        log_content = get_app_log(lines=log_lines)
+        st.code(log_content, language="text")
+
+
 def render_settings_page():
     """Render settings page"""
     st.header("⚙️ Settings")
@@ -937,6 +1156,8 @@ def main():
     
     if page == "🏠 หน้าหลัก":
         render_home_page()
+    elif page == "🔄 Actions / Sync":
+        render_actions_page()
     elif page == "📊 YouTube Analytics":
         render_youtube_analytics_page()
     elif page == "📈 Performance Trends":
