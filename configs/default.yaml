@@ -1,0 +1,144 @@
+# =====================================================
+# YouTube Content Assistant - Default Configuration
+# ไฟล์ตั้งค่าเริ่มต้นสำหรับระบบ
+# =====================================================
+
+# การตั้งค่าแอปพลิเคชัน
+app:
+  name: "YouTube Content Assistant"
+  version: "1.1.0"
+  debug: true
+  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+# การตั้งค่าฐานข้อมูล
+database:
+  type: "sqlite"
+  path: "data/youtube_assistant.db"
+  echo: false  # แสดง SQL queries ใน log
+
+# การตั้งค่า YouTube API
+youtube:
+  # OAuth Settings
+  oauth:
+    client_secrets_file: ".secrets/client_secrets.json"  # ไฟล์ credentials จาก Google Cloud Console
+    token_file: ".secrets/token.json"  # ไฟล์เก็บ access token (จะถูกสร้างอัตโนมัติ)
+    scopes:
+      - "https://www.googleapis.com/auth/youtube.readonly"
+      - "https://www.googleapis.com/auth/yt-analytics.readonly"
+    redirect_uri: "http://localhost:8080/"
+  
+  # API Settings
+  channel_id: ""  # ใส่ Channel ID ของคุณที่นี่ (หรือปล่อยว่างเพื่อใช้ channel ของ authenticated user)
+  max_results: 50  # จำนวนผลลัพธ์สูงสุดต่อ request
+  quota_limit: 10000  # daily quota limit
+  
+  # Data Fetch Settings
+  fetch:
+    default_days: 30  # จำนวนวันเริ่มต้นสำหรับดึงข้อมูล
+    incremental: true  # ดึงเฉพาะข้อมูลใหม่ (ตั้งแต่วันที่ล่าสุดในฐานข้อมูล)
+    batch_size: 50  # จำนวนวิดีโอต่อ batch
+    rate_limit_delay: 0.5  # หน่วงเวลาระหว่าง API calls (วินาที)
+
+# การตั้งค่าการวิเคราะห์
+analytics:
+  metrics_retention_days: 365
+  trending_threshold: 1.5  # multiplier for trending detection
+  performance_window_days: 30
+  
+  # Metrics ที่จะดึงจาก YouTube Analytics API
+  metrics:
+    - "views"
+    - "estimatedMinutesWatched"
+    - "averageViewDuration"
+    - "averageViewPercentage"
+    - "likes"
+    - "dislikes"
+    - "comments"
+    - "shares"
+    - "subscribersGained"
+    - "subscribersLost"
+    - "annotationClickThroughRate"
+    - "cardClickRate"
+
+# การตั้งค่า Content Ideas
+content:
+  idea_categories:
+    - "tutorial"
+    - "review"
+    - "vlog"
+    - "shorts"
+    - "livestream"
+  priority_levels:
+    - "high"
+    - "medium"
+    - "low"
+  status_options:
+    - "draft"
+    - "in_progress"
+    - "scheduled"
+    - "published"
+    - "archived"
+
+# การตั้งค่า Playbook Rules (กฎการปรับปรุงตัวเอง)
+playbook:
+  auto_learn: true
+  min_confidence_score: 0.7
+  rule_categories:
+    - "title_optimization"
+    - "thumbnail_strategy"
+    - "posting_time"
+    - "content_length"
+    - "engagement_tactics"
+
+# การตั้งค่า Scheduler
+scheduler:
+  enabled: true
+  timezone: "Asia/Bangkok"
+  jobs:
+    - name: "daily_metrics_collection"
+      cron: "0 6 * * *"  # ทุกวันเวลา 06:00
+    - name: "weekly_analysis"
+      cron: "0 9 * * 1"  # ทุกวันจันทร์เวลา 09:00
+    - name: "research_update"
+      cron: "0 12 * * *"  # ทุกวันเวลา 12:00
+    - name: "youtube_fetch"
+      cron: "0 5 * * *"  # ทุกวันเวลา 05:00 (ก่อน daily_metrics_collection)
+
+# การตั้งค่า Dashboard
+dashboard:
+  host: "0.0.0.0"
+  port: 8501
+  theme: "dark"
+  refresh_interval: 60  # seconds
+  
+  # Chart Settings
+  charts:
+    default_days: 30
+    colors:
+      primary: "#FF0000"
+      secondary: "#282828"
+      accent: "#AAAAAA"
+
+# การตั้งค่า Research
+research:
+  sources:
+    - "youtube_trending"
+    - "google_trends"
+    - "social_media"
+  keywords_limit: 100
+  update_frequency_hours: 24
+
+# การตั้งค่า Logging
+logging:
+  file: "logs/app.log"
+  max_size_mb: 10
+  backup_count: 5
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# การตั้งค่า Export
+export:
+  formats:
+    - "csv"
+    - "json"
+    - "xlsx"
+  output_dir: "exports"

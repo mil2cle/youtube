@@ -1,0 +1,85 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "youtube-content-assistant"
+version = "1.1.0"
+description = "Self-improving YouTube content assistant with analytics and content planning"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "YouTube Content Team", email = "team@example.com"}
+]
+keywords = ["youtube", "content", "assistant", "analytics", "ai"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn>=0.24.0",
+    "streamlit>=1.28.0",
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.12.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "pandas>=2.1.0",
+    "numpy>=1.26.0",
+    "rich>=13.7.0",
+    "click>=8.1.0",
+    "typer>=0.9.0",
+    "apscheduler>=3.10.0",
+    "pyyaml>=6.0.0",
+    "python-dotenv>=1.0.0",
+    "httpx>=0.25.0",
+    # Google APIs
+    "google-api-python-client>=2.111.0",
+    "google-auth>=2.25.0",
+    "google-auth-oauthlib>=1.2.0",
+    "google-auth-httplib2>=0.2.0",
+    # Visualization
+    "matplotlib>=3.8.0",
+    "plotly>=5.18.0",
+    # Utilities
+    "isodate>=0.6.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.11.0",
+    "isort>=5.12.0",
+    "mypy>=1.7.0",
+]
+
+[project.scripts]
+yt-assistant = "src.cli:main"
+init-db = "scripts.init_db:main"
+run-all = "scripts.run_all:main"
+fetch-youtube = "scripts.fetch_youtube:main"
+validate-auth = "scripts.validate_youtube_auth:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*", "scripts*", "dashboard*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
