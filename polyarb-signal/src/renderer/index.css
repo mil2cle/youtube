@@ -1,0 +1,173 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles for PolyArb Signal */
+:root {
+  --color-primary: #3b82f6;
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-bg-dark: #0f172a;
+  --color-bg-card: #1e293b;
+  --color-text: #f1f5f9;
+  --color-text-muted: #94a3b8;
+}
+
+body {
+  @apply bg-slate-900 text-slate-100 font-sans;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-slate-800;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-600 rounded;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-500;
+}
+
+/* Card component */
+.card {
+  @apply bg-slate-800 rounded-lg border border-slate-700 p-4;
+}
+
+/* Button variants */
+.btn {
+  @apply px-4 py-2 rounded-lg font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.btn-primary {
+  @apply bg-blue-600 hover:bg-blue-700 text-white;
+}
+
+.btn-success {
+  @apply bg-green-600 hover:bg-green-700 text-white;
+}
+
+.btn-danger {
+  @apply bg-red-600 hover:bg-red-700 text-white;
+}
+
+.btn-secondary {
+  @apply bg-slate-700 hover:bg-slate-600 text-slate-100;
+}
+
+/* Input styling */
+.input {
+  @apply w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent;
+}
+
+/* Status indicators */
+.status-dot {
+  @apply w-3 h-3 rounded-full;
+}
+
+.status-running {
+  @apply bg-green-500 animate-pulse;
+}
+
+.status-paused {
+  @apply bg-yellow-500;
+}
+
+.status-error {
+  @apply bg-red-500;
+}
+
+/* Signal card animation */
+@keyframes signal-flash {
+  0%, 100% {
+    @apply border-green-500/50;
+  }
+  50% {
+    @apply border-green-500;
+  }
+}
+
+.signal-card {
+  animation: signal-flash 1s ease-in-out 3;
+}
+
+/* Tier badges */
+.tier-badge {
+  @apply px-2 py-0.5 rounded text-xs font-bold;
+}
+
+.tier-a {
+  @apply bg-blue-600 text-white;
+}
+
+.tier-b {
+  @apply bg-slate-600 text-slate-200;
+}
+
+/* Table styling */
+.table-container {
+  @apply overflow-x-auto;
+}
+
+table {
+  @apply w-full text-left;
+}
+
+th {
+  @apply px-4 py-3 bg-slate-700 text-slate-300 font-medium text-sm uppercase tracking-wider;
+}
+
+td {
+  @apply px-4 py-3 border-t border-slate-700;
+}
+
+tr:hover {
+  @apply bg-slate-700/50;
+}
+
+/* Navigation tabs */
+.nav-tab {
+  @apply px-4 py-2 text-slate-400 hover:text-slate-100 border-b-2 border-transparent transition-colors;
+}
+
+.nav-tab.active {
+  @apply text-blue-400 border-blue-400;
+}
+
+/* Toast notifications */
+.toast {
+  @apply fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 animate-slide-up;
+}
+
+.toast-success {
+  @apply bg-green-600 text-white;
+}
+
+.toast-error {
+  @apply bg-red-600 text-white;
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
