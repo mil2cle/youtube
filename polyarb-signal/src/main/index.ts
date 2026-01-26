@@ -3,7 +3,7 @@
 // Electron desktop application
 // =====================================================
 
-import { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, shell } from 'electron';
+import { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage } from 'electron';
 import path from 'path';
 import { logger } from './utils/logger';
 import { settingsStore } from './utils/settingsStore';
@@ -12,94 +12,13 @@ import { signalEngine } from './services/signalEngine';
 import { telegramNotifier } from './services/telegramNotifier';
 import { tieringSystem } from './services/tieringSystem';
 import { wsClient } from './services/wsClient';
-
-// Import types from shared
-interface ArbSignal {
-  id: string;
-  timestamp: number;
-  marketId: string;
-  marketQuestion: string;
-  yesAsk: number;
-  noAsk: number;
-  rawGap: number;
-  effectiveEdge: number;
-  yesDepth: number;
-  noDepth: number;
-  isLowDepth: boolean;
-  polymarketUrl: string;
-  tier: 'A' | 'B';
-}
-
-interface SignalLogEntry {
-  id: string;
-  timestamp: number;
-  marketQuestion: string;
-  yesAsk: number;
-  noAsk: number;
-  gap: number;
-  polymarketUrl: string;
-  sent: boolean;
-  tier: 'A' | 'B';
-}
-
-interface DashboardStats {
-  totalMarkets: number;
-  tierAMarkets: number;
-  tierBMarkets: number;
-  signalsToday: number;
-  lastScanTime: number;
-  status: 'running' | 'paused' | 'error';
-  wsConnected: boolean;
-}
-
-interface AppSettings {
-  telegram: {
-    botToken: string;
-    chatId: string;
-  };
-  scanning: {
-    threshold: number;
-    feeBuffer: number;
-    cooldownMs: number;
-    debounceMs: number;
-  };
-  filters: {
-    minLiquidityUsd: number;
-    minVolume24hUsd: number;
-    minTopAskSizeUsd: number;
-    maxSpread: number;
-  };
-  tiering: {
-    tierAMax: number;
-    tierAIntervalMs: number;
-    tierBIntervalMs: number;
-    burstMinutes: number;
-  };
-  general: {
-    startOnBoot: boolean;
-    minimizeToTray: boolean;
-    sendLowDepthAlerts: boolean;
-  };
-}
-
-// IPC Channels
-const IPC_CHANNELS = {
-  GET_SETTINGS: 'get-settings',
-  SAVE_SETTINGS: 'save-settings',
-  TEST_TELEGRAM: 'test-telegram',
-  START_SCANNING: 'start-scanning',
-  STOP_SCANNING: 'stop-scanning',
-  GET_STATS: 'get-stats',
-  GET_LOGS: 'get-logs',
-  EXPORT_LOGS: 'export-logs',
-  GET_MARKETS: 'get-markets',
-  PIN_MARKET: 'pin-market',
-  UNPIN_MARKET: 'unpin-market',
-  BLACKLIST_MARKET: 'blacklist-market',
-  STATS_UPDATE: 'stats-update',
-  LOG_UPDATE: 'log-update',
-  SIGNAL_DETECTED: 'signal-detected',
-};
+import { 
+  ArbSignal, 
+  AppSettings, 
+  SignalLogEntry, 
+  DashboardStats,
+  IPC_CHANNELS 
+} from '../shared/types';
 
 // =====================================================
 // Global State
@@ -113,24 +32,11 @@ let isQuitting = false;
 // Path Helpers
 // =====================================================
 
-function getAssetPath(filename: string): string {
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, 'assets', filename);
-  }
-  return path.join(__dirname, '../../assets', filename);
-}
-
 function getPreloadPath(): string {
-  if (app.isPackaged) {
-    return path.join(__dirname, 'preload.js');
-  }
   return path.join(__dirname, 'preload.js');
 }
 
 function getRendererPath(): string {
-  if (app.isPackaged) {
-    return path.join(__dirname, '../renderer/index.html');
-  }
   return path.join(__dirname, '../renderer/index.html');
 }
 
@@ -161,7 +67,7 @@ function createWindow(): void {
     mainWindow.webContents.openDevTools();
   } else {
     const rendererPath = getRendererPath();
-    logger.info('Loading renderer from:', rendererPath);
+    logger.info(`Loading renderer from: ${rendererPath}`);
     mainWindow.loadFile(rendererPath);
   }
 
@@ -183,8 +89,8 @@ function createWindow(): void {
   });
 
   // Log any load errors
-  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
-    logger.error('Failed to load:', errorCode, errorDescription);
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
+    logger.error(`Failed to load: ${errorCode} - ${errorDescription}`);
   });
 
   logger.info('Main window created');
@@ -245,7 +151,7 @@ function createTray(): void {
 
     logger.info('System tray created');
   } catch (error) {
-    logger.error('Failed to create tray:', error);
+    logger.error(`Failed to create tray: ${error}`);
   }
 }
 
@@ -300,7 +206,7 @@ async function startScanning(): Promise<void> {
     logger.info(`สแกนเริ่มต้นแล้ว: ${markets.length} ตลาด`);
 
   } catch (error) {
-    logger.error('Error starting scanning:', error);
+    logger.error(`Error starting scanning: ${error}`);
     throw error;
   }
 }
@@ -503,9 +409,9 @@ app.on('before-quit', () => {
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
-  logger.error('Uncaught exception:', error);
+  logger.error(`Uncaught exception: ${error}`);
 });
 
 process.on('unhandledRejection', (reason) => {
-  logger.error('Unhandled rejection:', reason);
+  logger.error(`Unhandled rejection: ${reason}`);
 });
