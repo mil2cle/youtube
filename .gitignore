@@ -2,6 +2,7 @@
 .secrets/
 *.json
 !.secrets/.gitkeep
+!polyarb-signal/**/*.json
 
 # Python
 __pycache__/
