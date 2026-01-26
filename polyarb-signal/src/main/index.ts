@@ -304,7 +304,15 @@ function setupIpcHandlers(): void {
   });
 
   // Telegram
-  ipcMain.handle(IPC_CHANNELS.TEST_TELEGRAM, async () => {
+  ipcMain.handle(IPC_CHANNELS.TEST_TELEGRAM, async (_, credentials?: { botToken: string; chatId: string }) => {
+    if (credentials && credentials.botToken && credentials.chatId) {
+      // ใช้ credentials ที่ส่งมาจาก UI
+      return telegramNotifier.sendTestMessageWithCredentials(
+        credentials.botToken,
+        credentials.chatId
+      );
+    }
+    // ใช้ credentials ที่บันทึกไว้
     return telegramNotifier.sendTestMessage();
   });
 

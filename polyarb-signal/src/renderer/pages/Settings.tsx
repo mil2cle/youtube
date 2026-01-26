@@ -107,7 +107,11 @@ const Settings: React.FC = () => {
     setIsTesting(true);
     setTestResult(null);
     try {
-      const result = await window.electronAPI.testTelegram();
+      // ส่ง credentials ที่กรอกใน form ไปทดสอบโดยตรง
+      const result = await window.electronAPI.testTelegram({
+        botToken: settings.telegram.botToken,
+        chatId: settings.telegram.chatId,
+      });
       setTestResult(result);
     } catch (error) {
       setTestResult({ success: false, error: 'เกิดข้อผิดพลาด' });

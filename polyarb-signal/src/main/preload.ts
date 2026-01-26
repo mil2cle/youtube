@@ -13,7 +13,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveSettings: (settings: any) => ipcRenderer.invoke(IPC_CHANNELS.SAVE_SETTINGS, settings),
 
   // Telegram
-  testTelegram: () => ipcRenderer.invoke(IPC_CHANNELS.TEST_TELEGRAM),
+  testTelegram: (credentials?: { botToken: string; chatId: string }) => 
+    ipcRenderer.invoke(IPC_CHANNELS.TEST_TELEGRAM, credentials),
 
   // Scanning
   startScanning: () => ipcRenderer.invoke(IPC_CHANNELS.START_SCANNING),
@@ -58,7 +59,7 @@ declare global {
     electronAPI: {
       getSettings: () => Promise<any>;
       saveSettings: (settings: any) => Promise<{ success: boolean }>;
-      testTelegram: () => Promise<{ success: boolean; error?: string }>;
+      testTelegram: (credentials?: { botToken: string; chatId: string }) => Promise<{ success: boolean; error?: string }>;
       startScanning: () => Promise<{ success: boolean }>;
       stopScanning: () => Promise<{ success: boolean }>;
       getStats: () => Promise<any>;

@@ -41,16 +41,32 @@ class TelegramNotifier {
   }
 
   /**
-   * ส่งข้อความทดสอบ
+   * ส่งข้อความทดสอบ (ใช้ credentials ที่บันทึกไว้)
    */
   async sendTestMessage(): Promise<{ success: boolean; error?: string }> {
     if (!this.isConfigured) {
-      return { success: false, error: 'Telegram not configured' };
+      return { success: false, error: 'กรุณาบันทึกการตั้งค่าก่อนทดสอบ' };
     }
 
-    const message = `🧪 *PolyArb Signal Test*\n\nการทดสอบการเชื่อมต่อสำเร็จ!\nTimestamp: ${new Date().toISOString()}`;
+    const message = `🧪 *PolyArb Signal Test*\n\n✅ การทดสอบการเชื่อมต่อสำเร็จ!\n⏰ Timestamp: ${new Date().toLocaleString('th-TH')}`;
 
     return this.sendMessage(message);
+  }
+
+  /**
+   * ส่งข้อความทดสอบด้วย credentials ที่ระบุ (ไม่ต้องบันทึกก่อน)
+   */
+  async sendTestMessageWithCredentials(
+    botToken: string,
+    chatId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    if (!botToken || !chatId) {
+      return { success: false, error: 'กรุณากรอก Bot Token และ Chat ID' };
+    }
+
+    const message = `🧪 *PolyArb Signal Test*\n\n✅ การทดสอบการเชื่อมต่อสำเร็จ!\n⏰ Timestamp: ${new Date().toLocaleString('th-TH')}`;
+
+    return this.sendMessageWithCredentials(message, botToken, chatId);
   }
 
   /**
@@ -90,15 +106,28 @@ class TelegramNotifier {
   }
 
   /**
-   * ส่งข้อความทั่วไป
+   * ส่งข้อความทั่วไป (ใช้ credentials ที่บันทึกไว้)
    */
   async sendMessage(text: string): Promise<{ success: boolean; error?: string }> {
     if (!this.isConfigured) {
       return { success: false, error: 'Telegram not configured' };
     }
 
+    return this.sendMessageWithCredentials(text, this.botToken, this.chatId);
+  }
+
+  /**
+   * ส่งข้อความด้วย credentials ที่ระบุ
+   */
+  async sendMessageWithCredentials(
+    text: string,
+    botToken: string,
+    chatId: string
+  ): Promise<{ success: boolean; error?: string }> {
     try {
-      const url = `${TELEGRAM.API_BASE}${this.botToken}/sendMessage`;
+      const url = `${TELEGRAM.API_BASE}${botToken}/sendMessage`;
+      
+      logger.info(`Sending Telegram message to chat ${chatId}`);
       
       const response = await fetch(url, {
         method: 'POST',
@@ -106,7 +135,7 @@ class TelegramNotifier {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          chat_id: this.chatId,
+          chat_id: chatId,
           text: text.slice(0, TELEGRAM.MAX_MESSAGE_LENGTH),
           parse_mode: 'Markdown',
           disable_web_page_preview: false,
@@ -117,16 +146,16 @@ class TelegramNotifier {
 
       if (!response.ok || !data.ok) {
         const errorMsg = data.description || 'Unknown error';
-        logger.error('Telegram API error:', errorMsg);
+        logger.error(`Telegram API error: ${errorMsg}`);
         return { success: false, error: errorMsg };
       }
 
-      logger.debug('Telegram message sent successfully');
+      logger.info('Telegram message sent successfully');
       return { success: true };
 
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Failed to send Telegram message:', errorMsg);
+      logger.error(`Failed to send Telegram message: ${errorMsg}`);
       return { success: false, error: errorMsg };
     }
   }
