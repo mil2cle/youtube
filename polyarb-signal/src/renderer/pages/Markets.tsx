@@ -3,7 +3,19 @@
 // =====================================================
 
 import React, { useState, useEffect } from 'react';
-import { TieredMarket } from '@shared/types';
+
+// Define types locally
+interface TieredMarket {
+  id: string;
+  question: string;
+  tier: 'A' | 'B';
+  liquidity: number;
+  volume24h: number;
+  lastUpdate: number;
+  nearArbCount: number;
+  inBurstMode: boolean;
+  polymarketUrl: string;
+}
 
 const Markets: React.FC = () => {
   const [markets, setMarkets] = useState<TieredMarket[]>([]);
@@ -19,6 +31,10 @@ const Markets: React.FC = () => {
   }, []);
 
   const loadMarkets = async () => {
+    if (!window.electronAPI) {
+      setIsLoading(false);
+      return;
+    }
     try {
       const data = await window.electronAPI.getMarkets();
       setMarkets(data);
@@ -30,6 +46,7 @@ const Markets: React.FC = () => {
   };
 
   const handlePin = async (marketId: string) => {
+    if (!window.electronAPI) return;
     try {
       await window.electronAPI.pinMarket(marketId);
       loadMarkets();
@@ -39,6 +56,7 @@ const Markets: React.FC = () => {
   };
 
   const handleUnpin = async (marketId: string) => {
+    if (!window.electronAPI) return;
     try {
       await window.electronAPI.unpinMarket(marketId);
       loadMarkets();
@@ -48,6 +66,7 @@ const Markets: React.FC = () => {
   };
 
   const handleBlacklist = async (marketId: string) => {
+    if (!window.electronAPI) return;
     if (window.confirm('ต้องการ blacklist ตลาดนี้หรือไม่?')) {
       try {
         await window.electronAPI.blacklistMarket(marketId);
@@ -93,33 +112,45 @@ const Markets: React.FC = () => {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">ตลาด ({markets.length})</h2>
+        <h2 className="text-xl font-semibold text-white">ตลาด ({markets.length})</h2>
         <button
           onClick={loadMarkets}
-          className="btn btn-secondary text-sm"
+          className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-white rounded-lg text-sm transition-colors"
         >
           🔄 รีเฟรช
         </button>
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 flex-wrap">
         <div className="flex gap-2">
           <button
             onClick={() => setFilter('all')}
-            className={`btn text-sm ${filter === 'all' ? 'btn-primary' : 'btn-secondary'}`}
+            className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+              filter === 'all' 
+                ? 'bg-blue-600 text-white' 
+                : 'bg-slate-600 hover:bg-slate-500 text-white'
+            }`}
           >
             ทั้งหมด ({markets.length})
           </button>
           <button
             onClick={() => setFilter('A')}
-            className={`btn text-sm ${filter === 'A' ? 'btn-primary' : 'btn-secondary'}`}
+            className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+              filter === 'A' 
+                ? 'bg-blue-600 text-white' 
+                : 'bg-slate-600 hover:bg-slate-500 text-white'
+            }`}
           >
             Tier A ({tierACount})
           </button>
           <button
             onClick={() => setFilter('B')}
-            className={`btn text-sm ${filter === 'B' ? 'btn-primary' : 'btn-secondary'}`}
+            className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+              filter === 'B' 
+                ? 'bg-blue-600 text-white' 
+                : 'bg-slate-600 hover:bg-slate-500 text-white'
+            }`}
           >
             Tier B ({tierBCount})
           </button>
@@ -127,7 +158,7 @@ const Markets: React.FC = () => {
 
         <input
           type="text"
-          className="input max-w-xs"
+          className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 max-w-xs"
           placeholder="ค้นหาตลาด..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -136,7 +167,7 @@ const Markets: React.FC = () => {
 
       {/* Markets list */}
       {filteredMarkets.length === 0 ? (
-        <div className="card text-center py-12">
+        <div className="bg-slate-800 rounded-lg p-12 text-center border border-slate-700">
           <p className="text-slate-400">ไม่พบตลาด</p>
           <p className="text-sm text-slate-500 mt-2">
             {markets.length === 0 ? 'เริ่มสแกนเพื่อโหลดตลาด' : 'ลองเปลี่ยนตัวกรอง'}
@@ -147,13 +178,15 @@ const Markets: React.FC = () => {
           {filteredMarkets.map((market) => (
             <div
               key={market.id}
-              className={`card flex items-start justify-between gap-4 ${
-                market.inBurstMode ? 'border-yellow-500/50' : ''
+              className={`bg-slate-800 rounded-lg p-4 border flex items-start justify-between gap-4 ${
+                market.inBurstMode ? 'border-yellow-500/50' : 'border-slate-700'
               }`}
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className={`tier-badge ${market.tier === 'A' ? 'tier-a' : 'tier-b'}`}>
+                  <span className={`px-2 py-1 rounded text-xs font-bold ${
+                    market.tier === 'A' ? 'bg-green-600 text-white' : 'bg-yellow-600 text-white'
+                  }`}>
                     Tier {market.tier}
                   </span>
                   {market.inBurstMode && (
@@ -163,7 +196,7 @@ const Markets: React.FC = () => {
                 <h3 className="font-medium text-slate-100 truncate" title={market.question}>
                   {market.question}
                 </h3>
-                <div className="flex items-center gap-4 mt-2 text-sm text-slate-400">
+                <div className="flex items-center gap-4 mt-2 text-sm text-slate-400 flex-wrap">
                   <span>💰 {formatNumber(market.liquidity)}</span>
                   <span>📊 {formatNumber(market.volume24h)}/24h</span>
                   <span>🕐 {formatTime(market.lastUpdate)}</span>
@@ -175,7 +208,7 @@ const Markets: React.FC = () => {
                 {market.tier === 'A' ? (
                   <button
                     onClick={() => handleUnpin(market.id)}
-                    className="btn btn-secondary text-sm"
+                    className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-white rounded-lg text-sm transition-colors"
                     title="Unpin"
                   >
                     📌
@@ -183,7 +216,7 @@ const Markets: React.FC = () => {
                 ) : (
                   <button
                     onClick={() => handlePin(market.id)}
-                    className="btn btn-secondary text-sm"
+                    className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-white rounded-lg text-sm transition-colors"
                     title="Pin to Tier A"
                   >
                     📍
@@ -191,7 +224,7 @@ const Markets: React.FC = () => {
                 )}
                 <button
                   onClick={() => handleBlacklist(market.id)}
-                  className="btn btn-secondary text-sm text-red-400 hover:text-red-300"
+                  className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-red-400 hover:text-red-300 rounded-lg text-sm transition-colors"
                   title="Blacklist"
                 >
                   🚫
@@ -200,7 +233,7 @@ const Markets: React.FC = () => {
                   href={market.polymarketUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="btn btn-secondary text-sm"
+                  className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-white rounded-lg text-sm transition-colors"
                 >
                   🔗
                 </a>
@@ -211,8 +244,8 @@ const Markets: React.FC = () => {
       )}
 
       {/* Legend */}
-      <div className="card bg-slate-800/50">
-        <h4 className="font-medium mb-2">คำอธิบาย</h4>
+      <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+        <h4 className="font-medium text-white mb-2">คำอธิบาย</h4>
         <div className="grid grid-cols-2 gap-2 text-sm text-slate-400">
           <div>📍 Pin - ย้ายไป Tier A ถาวร</div>
           <div>📌 Unpin - ปล่อยให้ระบบจัดการ</div>

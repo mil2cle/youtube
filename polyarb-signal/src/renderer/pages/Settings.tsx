@@ -3,11 +3,70 @@
 // =====================================================
 
 import React, { useState, useEffect } from 'react';
-import { AppSettings } from '@shared/types';
-import { DEFAULT_SETTINGS } from '@shared/constants';
+
+// Define types and defaults locally
+interface AppSettings {
+  telegram: {
+    botToken: string;
+    chatId: string;
+  };
+  scanning: {
+    threshold: number;
+    feeBuffer: number;
+    cooldownMs: number;
+    debounceMs: number;
+  };
+  filters: {
+    minLiquidityUsd: number;
+    minVolume24hUsd: number;
+    minTopAskSizeUsd: number;
+    maxSpread: number;
+  };
+  tiering: {
+    tierAMax: number;
+    tierAIntervalMs: number;
+    tierBIntervalMs: number;
+    burstMinutes: number;
+  };
+  general: {
+    startOnBoot: boolean;
+    minimizeToTray: boolean;
+    sendLowDepthAlerts: boolean;
+  };
+}
+
+const DEFAULT_SETTINGS: AppSettings = {
+  telegram: {
+    botToken: '',
+    chatId: '',
+  },
+  scanning: {
+    threshold: 0.01,
+    feeBuffer: 0.004,
+    cooldownMs: 180000,
+    debounceMs: 500,
+  },
+  filters: {
+    minLiquidityUsd: 5000,
+    minVolume24hUsd: 1000,
+    minTopAskSizeUsd: 50,
+    maxSpread: 0.10,
+  },
+  tiering: {
+    tierAMax: 50,
+    tierAIntervalMs: 3000,
+    tierBIntervalMs: 30000,
+    burstMinutes: 5,
+  },
+  general: {
+    startOnBoot: false,
+    minimizeToTray: true,
+    sendLowDepthAlerts: false,
+  },
+};
 
 const Settings: React.FC = () => {
-  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS as AppSettings);
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null);
@@ -18,6 +77,7 @@ const Settings: React.FC = () => {
   }, []);
 
   const loadSettings = async () => {
+    if (!window.electronAPI) return;
     try {
       const loadedSettings = await window.electronAPI.getSettings();
       setSettings(loadedSettings);
@@ -27,6 +87,7 @@ const Settings: React.FC = () => {
   };
 
   const handleSave = async () => {
+    if (!window.electronAPI) return;
     setIsSaving(true);
     setSaveMessage(null);
     try {
@@ -42,6 +103,7 @@ const Settings: React.FC = () => {
   };
 
   const handleTestTelegram = async () => {
+    if (!window.electronAPI) return;
     setIsTesting(true);
     setTestResult(null);
     try {
@@ -71,8 +133,8 @@ const Settings: React.FC = () => {
   return (
     <div className="space-y-6 max-w-3xl">
       {/* Telegram Settings */}
-      <div className="card">
-        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+      <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
           <span>📱</span>
           Telegram
         </h3>
@@ -82,7 +144,7 @@ const Settings: React.FC = () => {
             <label className="block text-sm text-slate-400 mb-1">Bot Token</label>
             <input
               type="password"
-              className="input"
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
               placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
               value={settings.telegram.botToken}
               onChange={(e) => updateSetting('telegram', 'botToken', e.target.value)}
@@ -96,7 +158,7 @@ const Settings: React.FC = () => {
             <label className="block text-sm text-slate-400 mb-1">Chat ID</label>
             <input
               type="text"
-              className="input"
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500"
               placeholder="-1001234567890"
               value={settings.telegram.chatId}
               onChange={(e) => updateSetting('telegram', 'chatId', e.target.value)}
@@ -110,7 +172,7 @@ const Settings: React.FC = () => {
             <button
               onClick={handleTestTelegram}
               disabled={isTesting || !settings.telegram.botToken || !settings.telegram.chatId}
-              className="btn btn-secondary"
+              className="px-4 py-2 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
             >
               {isTesting ? 'กำลังทดสอบ...' : 'ทดสอบการเชื่อมต่อ'}
             </button>
@@ -124,8 +186,8 @@ const Settings: React.FC = () => {
       </div>
 
       {/* Scanning Settings */}
-      <div className="card">
-        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+      <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
           <span>🔍</span>
           การสแกน
         </h3>
@@ -137,7 +199,7 @@ const Settings: React.FC = () => {
             </label>
             <input
               type="number"
-              className="input"
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
               step="0.1"
               min="0"
               max="10"
@@ -155,7 +217,7 @@ const Settings: React.FC = () => {
             </label>
             <input
               type="number"
-              className="input"
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
               step="0.1"
               min="0"
               max="5"
@@ -173,7 +235,7 @@ const Settings: React.FC = () => {
             </label>
             <input
               type="number"
-              className="input"
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
               min="0"
               value={settings.scanning.cooldownMs / 1000}
               onChange={(e) => updateSetting('scanning', 'cooldownMs', parseInt(e.target.value) * 1000)}
@@ -189,7 +251,7 @@ const Settings: React.FC = () => {
             </label>
             <input
               type="number"
-              className="input"
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
               min="0"
               value={settings.scanning.debounceMs}
               onChange={(e) => updateSetting('scanning', 'debounceMs', parseInt(e.target.value))}
@@ -202,8 +264,8 @@ const Settings: React.FC = () => {
       </div>
 
       {/* Filter Settings */}
-      <div className="card">
-        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+      <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
           <span>🎯</span>
           ตัวกรอง
         </h3>
@@ -215,7 +277,7 @@ const Settings: React.FC = () => {
             </label>
             <input
               type="number"
-              className="input"
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
               min="0"
               value={settings.filters.minLiquidityUsd}
               onChange={(e) => updateSetting('filters', 'minLiquidityUsd', parseInt(e.target.value))}
@@ -228,7 +290,7 @@ const Settings: React.FC = () => {
             </label>
             <input
               type="number"
-              className="input"
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
               min="0"
               value={settings.filters.minVolume24hUsd}
               onChange={(e) => updateSetting('filters', 'minVolume24hUsd', parseInt(e.target.value))}
@@ -241,7 +303,7 @@ const Settings: React.FC = () => {
             </label>
             <input
               type="number"
-              className="input"
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
               min="0"
               value={settings.filters.minTopAskSizeUsd}
               onChange={(e) => updateSetting('filters', 'minTopAskSizeUsd', parseInt(e.target.value))}
@@ -254,7 +316,7 @@ const Settings: React.FC = () => {
             </label>
             <input
               type="number"
-              className="input"
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
               step="0.1"
               min="0"
               max="20"
@@ -266,8 +328,8 @@ const Settings: React.FC = () => {
       </div>
 
       {/* Tiering Settings */}
-      <div className="card">
-        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+      <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
           <span>📊</span>
           Tiering
         </h3>
@@ -279,7 +341,7 @@ const Settings: React.FC = () => {
             </label>
             <input
               type="number"
-              className="input"
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
               min="1"
               max="200"
               value={settings.tiering.tierAMax}
@@ -293,7 +355,7 @@ const Settings: React.FC = () => {
             </label>
             <input
               type="number"
-              className="input"
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
               min="1"
               value={settings.tiering.tierAIntervalMs / 1000}
               onChange={(e) => updateSetting('tiering', 'tierAIntervalMs', parseInt(e.target.value) * 1000)}
@@ -306,7 +368,7 @@ const Settings: React.FC = () => {
             </label>
             <input
               type="number"
-              className="input"
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
               min="1"
               value={settings.tiering.tierBIntervalMs / 1000}
               onChange={(e) => updateSetting('tiering', 'tierBIntervalMs', parseInt(e.target.value) * 1000)}
@@ -319,7 +381,7 @@ const Settings: React.FC = () => {
             </label>
             <input
               type="number"
-              className="input"
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
               min="1"
               value={settings.tiering.burstMinutes}
               onChange={(e) => updateSetting('tiering', 'burstMinutes', parseInt(e.target.value))}
@@ -329,14 +391,14 @@ const Settings: React.FC = () => {
       </div>
 
       {/* General Settings */}
-      <div className="card">
-        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+      <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
           <span>⚙️</span>
           ทั่วไป
         </h3>
         
         <div className="space-y-3">
-          <label className="flex items-center gap-3 cursor-pointer">
+          <label className="flex items-center gap-3 cursor-pointer text-white">
             <input
               type="checkbox"
               className="w-5 h-5 rounded bg-slate-700 border-slate-600 text-blue-600 focus:ring-blue-500"
@@ -346,7 +408,7 @@ const Settings: React.FC = () => {
             <span>เริ่มสแกนอัตโนมัติเมื่อเปิดโปรแกรม</span>
           </label>
 
-          <label className="flex items-center gap-3 cursor-pointer">
+          <label className="flex items-center gap-3 cursor-pointer text-white">
             <input
               type="checkbox"
               className="w-5 h-5 rounded bg-slate-700 border-slate-600 text-blue-600 focus:ring-blue-500"
@@ -356,10 +418,10 @@ const Settings: React.FC = () => {
             <span>ย่อไปที่ System Tray เมื่อปิดหน้าต่าง</span>
           </label>
 
-          <label className="flex items-center gap-3 cursor-pointer">
+          <label className="flex items-center gap-3 cursor-pointer text-white">
             <input
               type="checkbox"
-              className="w-5 h-5 rounded bg-slate-700 border-slate-600 text-blue-600 focus:ring-blue-500"
+              className="w-5 h-5 rounded bg-slate-700 border border-slate-600 text-blue-600 focus:ring-blue-500"
               checked={settings.general.sendLowDepthAlerts}
               onChange={(e) => updateSetting('general', 'sendLowDepthAlerts', e.target.checked)}
             />
@@ -373,7 +435,7 @@ const Settings: React.FC = () => {
         <button
           onClick={handleSave}
           disabled={isSaving}
-          className="btn btn-primary"
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded-lg font-medium transition-colors"
         >
           {isSaving ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}
         </button>

@@ -7,7 +7,45 @@ import Dashboard from './pages/Dashboard';
 import Settings from './pages/Settings';
 import Logs from './pages/Logs';
 import Markets from './pages/Markets';
-import { DashboardStats, SignalLogEntry, ArbSignal } from '@shared/types';
+
+// Define types locally to avoid import issues in production
+interface DashboardStats {
+  totalMarkets: number;
+  tierAMarkets: number;
+  tierBMarkets: number;
+  signalsToday: number;
+  lastScanTime: number;
+  status: 'running' | 'paused' | 'error';
+  wsConnected: boolean;
+}
+
+interface SignalLogEntry {
+  id: string;
+  timestamp: number;
+  marketQuestion: string;
+  yesAsk: number;
+  noAsk: number;
+  gap: number;
+  polymarketUrl: string;
+  sent: boolean;
+  tier: 'A' | 'B';
+}
+
+interface ArbSignal {
+  id: string;
+  timestamp: number;
+  marketId: string;
+  marketQuestion: string;
+  yesAsk: number;
+  noAsk: number;
+  rawGap: number;
+  effectiveEdge: number;
+  yesDepth: number;
+  noDepth: number;
+  isLowDepth: boolean;
+  polymarketUrl: string;
+  tier: 'A' | 'B';
+}
 
 type TabType = 'dashboard' | 'markets' | 'logs' | 'settings';
 
@@ -16,25 +54,39 @@ const App: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [logs, setLogs] = useState<SignalLogEntry[]>([]);
   const [latestSignal, setLatestSignal] = useState<ArbSignal | null>(null);
+  const [isElectronReady, setIsElectronReady] = useState(false);
 
   useEffect(() => {
-    // Load initial data
-    loadInitialData();
+    // Check if electronAPI is available
+    if (typeof window !== 'undefined' && window.electronAPI) {
+      setIsElectronReady(true);
+      loadInitialData();
 
-    // Setup event listeners
-    window.electronAPI.onStatsUpdate((newStats) => {
-      setStats(newStats);
-    });
+      // Setup event listeners
+      window.electronAPI.onStatsUpdate((newStats: DashboardStats) => {
+        setStats(newStats);
+      });
 
-    window.electronAPI.onLogUpdate((log) => {
-      setLogs(prev => [log, ...prev].slice(0, 100));
-    });
+      window.electronAPI.onLogUpdate((log: SignalLogEntry) => {
+        setLogs(prev => [log, ...prev].slice(0, 100));
+      });
 
-    window.electronAPI.onSignalDetected((signal) => {
-      setLatestSignal(signal);
-      // Clear after 10 seconds
-      setTimeout(() => setLatestSignal(null), 10000);
-    });
+      window.electronAPI.onSignalDetected((signal: ArbSignal) => {
+        setLatestSignal(signal);
+        // Clear after 10 seconds
+        setTimeout(() => setLatestSignal(null), 10000);
+      });
+    } else {
+      console.log('electronAPI not available yet, waiting...');
+      // Retry after a short delay
+      const timer = setTimeout(() => {
+        if (window.electronAPI) {
+          setIsElectronReady(true);
+          loadInitialData();
+        }
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
 
     return () => {
       // Cleanup listeners
@@ -42,6 +94,8 @@ const App: React.FC = () => {
   }, []);
 
   const loadInitialData = async () => {
+    if (!window.electronAPI) return;
+    
     try {
       const [statsData, logsData] = await Promise.all([
         window.electronAPI.getStats(),
@@ -76,7 +130,7 @@ const App: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-xl font-bold">P</span>
+              <span className="text-xl font-bold text-white">P</span>
             </div>
             <div>
               <h1 className="text-xl font-bold text-white">PolyArb Signal</h1>
@@ -86,7 +140,7 @@ const App: React.FC = () => {
           
           {/* Status indicator */}
           <div className="flex items-center gap-2">
-            <div className={`status-dot ${stats?.status === 'running' ? 'status-running' : 'status-paused'}`} />
+            <div className={`w-2 h-2 rounded-full ${stats?.status === 'running' ? 'bg-green-500' : 'bg-yellow-500'}`} />
             <span className="text-sm text-slate-300">
               {stats?.status === 'running' ? 'กำลังสแกน' : 'หยุดอยู่'}
             </span>
@@ -97,25 +151,41 @@ const App: React.FC = () => {
         <nav className="flex gap-1 mt-4">
           <button
             onClick={() => setActiveTab('dashboard')}
-            className={`nav-tab ${activeTab === 'dashboard' ? 'active' : ''}`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'dashboard' 
+                ? 'bg-blue-600 text-white' 
+                : 'text-slate-400 hover:text-white hover:bg-slate-700'
+            }`}
           >
             แดชบอร์ด
           </button>
           <button
             onClick={() => setActiveTab('markets')}
-            className={`nav-tab ${activeTab === 'markets' ? 'active' : ''}`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'markets' 
+                ? 'bg-blue-600 text-white' 
+                : 'text-slate-400 hover:text-white hover:bg-slate-700'
+            }`}
           >
             ตลาด
           </button>
           <button
             onClick={() => setActiveTab('logs')}
-            className={`nav-tab ${activeTab === 'logs' ? 'active' : ''}`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'logs' 
+                ? 'bg-blue-600 text-white' 
+                : 'text-slate-400 hover:text-white hover:bg-slate-700'
+            }`}
           >
             บันทึก
           </button>
           <button
             onClick={() => setActiveTab('settings')}
-            className={`nav-tab ${activeTab === 'settings' ? 'active' : ''}`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              activeTab === 'settings' 
+                ? 'bg-blue-600 text-white' 
+                : 'text-slate-400 hover:text-white hover:bg-slate-700'
+            }`}
           >
             ตั้งค่า
           </button>
@@ -129,7 +199,7 @@ const App: React.FC = () => {
 
       {/* Signal notification toast */}
       {latestSignal && (
-        <div className="toast toast-success signal-card">
+        <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg">
           <div className="flex items-center gap-2">
             <span className="text-lg">🎯</span>
             <div>

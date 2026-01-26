@@ -12,7 +12,94 @@ import { signalEngine } from './services/signalEngine';
 import { telegramNotifier } from './services/telegramNotifier';
 import { tieringSystem } from './services/tieringSystem';
 import { wsClient } from './services/wsClient';
-import { IPC_CHANNELS, ArbSignal, AppSettings, SignalLogEntry, DashboardStats } from '../shared/types';
+
+// Import types from shared
+interface ArbSignal {
+  id: string;
+  timestamp: number;
+  marketId: string;
+  marketQuestion: string;
+  yesAsk: number;
+  noAsk: number;
+  rawGap: number;
+  effectiveEdge: number;
+  yesDepth: number;
+  noDepth: number;
+  isLowDepth: boolean;
+  polymarketUrl: string;
+  tier: 'A' | 'B';
+}
+
+interface SignalLogEntry {
+  id: string;
+  timestamp: number;
+  marketQuestion: string;
+  yesAsk: number;
+  noAsk: number;
+  gap: number;
+  polymarketUrl: string;
+  sent: boolean;
+  tier: 'A' | 'B';
+}
+
+interface DashboardStats {
+  totalMarkets: number;
+  tierAMarkets: number;
+  tierBMarkets: number;
+  signalsToday: number;
+  lastScanTime: number;
+  status: 'running' | 'paused' | 'error';
+  wsConnected: boolean;
+}
+
+interface AppSettings {
+  telegram: {
+    botToken: string;
+    chatId: string;
+  };
+  scanning: {
+    threshold: number;
+    feeBuffer: number;
+    cooldownMs: number;
+    debounceMs: number;
+  };
+  filters: {
+    minLiquidityUsd: number;
+    minVolume24hUsd: number;
+    minTopAskSizeUsd: number;
+    maxSpread: number;
+  };
+  tiering: {
+    tierAMax: number;
+    tierAIntervalMs: number;
+    tierBIntervalMs: number;
+    burstMinutes: number;
+  };
+  general: {
+    startOnBoot: boolean;
+    minimizeToTray: boolean;
+    sendLowDepthAlerts: boolean;
+  };
+}
+
+// IPC Channels
+const IPC_CHANNELS = {
+  GET_SETTINGS: 'get-settings',
+  SAVE_SETTINGS: 'save-settings',
+  TEST_TELEGRAM: 'test-telegram',
+  START_SCANNING: 'start-scanning',
+  STOP_SCANNING: 'stop-scanning',
+  GET_STATS: 'get-stats',
+  GET_LOGS: 'get-logs',
+  EXPORT_LOGS: 'export-logs',
+  GET_MARKETS: 'get-markets',
+  PIN_MARKET: 'pin-market',
+  UNPIN_MARKET: 'unpin-market',
+  BLACKLIST_MARKET: 'blacklist-market',
+  STATS_UPDATE: 'stats-update',
+  LOG_UPDATE: 'log-update',
+  SIGNAL_DETECTED: 'signal-detected',
+};
 
 // =====================================================
 // Global State
@@ -21,6 +108,31 @@ import { IPC_CHANNELS, ArbSignal, AppSettings, SignalLogEntry, DashboardStats } 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
+
+// =====================================================
+// Path Helpers
+// =====================================================
+
+function getAssetPath(filename: string): string {
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'assets', filename);
+  }
+  return path.join(__dirname, '../../assets', filename);
+}
+
+function getPreloadPath(): string {
+  if (app.isPackaged) {
+    return path.join(__dirname, 'preload.js');
+  }
+  return path.join(__dirname, 'preload.js');
+}
+
+function getRendererPath(): string {
+  if (app.isPackaged) {
+    return path.join(__dirname, '../renderer/index.html');
+  }
+  return path.join(__dirname, '../renderer/index.html');
+}
 
 // =====================================================
 // Window Management
@@ -35,11 +147,10 @@ function createWindow(): void {
     minWidth: 800,
     minHeight: 600,
     title: 'PolyArb Signal',
-    icon: path.join(__dirname, '../../assets/icon.png'),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js'),
+      preload: getPreloadPath(),
     },
     show: false,
   });
@@ -49,7 +160,9 @@ function createWindow(): void {
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+    const rendererPath = getRendererPath();
+    logger.info('Loading renderer from:', rendererPath);
+    mainWindow.loadFile(rendererPath);
   }
 
   // Show window when ready
@@ -69,6 +182,11 @@ function createWindow(): void {
     mainWindow = null;
   });
 
+  // Log any load errors
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    logger.error('Failed to load:', errorCode, errorDescription);
+  });
+
   logger.info('Main window created');
 }
 
@@ -77,55 +195,58 @@ function createWindow(): void {
 // =====================================================
 
 function createTray(): void {
-  const iconPath = path.join(__dirname, '../../assets/tray-icon.png');
-  const icon = nativeImage.createFromPath(iconPath);
-  
-  tray = new Tray(icon.resize({ width: 16, height: 16 }));
-  tray.setToolTip('PolyArb Signal');
+  try {
+    // Create a simple tray icon
+    const icon = nativeImage.createEmpty();
+    tray = new Tray(icon);
+    tray.setToolTip('PolyArb Signal');
 
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: 'เปิดหน้าต่าง',
-      click: () => {
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.focus();
-        } else {
-          createWindow();
-        }
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: 'เปิดหน้าต่าง',
+        click: () => {
+          if (mainWindow) {
+            mainWindow.show();
+            mainWindow.focus();
+          } else {
+            createWindow();
+          }
+        },
       },
-    },
-    { type: 'separator' },
-    {
-      label: 'เริ่มสแกน',
-      click: () => startScanning(),
-    },
-    {
-      label: 'หยุดสแกน',
-      click: () => stopScanning(),
-    },
-    { type: 'separator' },
-    {
-      label: 'ออกจากโปรแกรม',
-      click: () => {
-        isQuitting = true;
-        app.quit();
+      { type: 'separator' },
+      {
+        label: 'เริ่มสแกน',
+        click: () => startScanning(),
       },
-    },
-  ]);
+      {
+        label: 'หยุดสแกน',
+        click: () => stopScanning(),
+      },
+      { type: 'separator' },
+      {
+        label: 'ออกจากโปรแกรม',
+        click: () => {
+          isQuitting = true;
+          app.quit();
+        },
+      },
+    ]);
 
-  tray.setContextMenu(contextMenu);
+    tray.setContextMenu(contextMenu);
 
-  tray.on('double-click', () => {
-    if (mainWindow) {
-      mainWindow.show();
-      mainWindow.focus();
-    } else {
-      createWindow();
-    }
-  });
+    tray.on('double-click', () => {
+      if (mainWindow) {
+        mainWindow.show();
+        mainWindow.focus();
+      } else {
+        createWindow();
+      }
+    });
 
-  logger.info('System tray created');
+    logger.info('System tray created');
+  } catch (error) {
+    logger.error('Failed to create tray:', error);
+  }
 }
 
 // =====================================================

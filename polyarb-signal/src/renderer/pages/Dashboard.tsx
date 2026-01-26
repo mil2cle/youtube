@@ -3,7 +3,35 @@
 // =====================================================
 
 import React, { useState } from 'react';
-import { DashboardStats, ArbSignal } from '@shared/types';
+
+// Define types locally
+interface DashboardStats {
+  totalMarkets: number;
+  tierAMarkets: number;
+  tierBMarkets: number;
+  signalsToday: number;
+  lastScanTime: number;
+  status: 'running' | 'paused' | 'error';
+  wsConnected: boolean;
+}
+
+interface ArbSignal {
+  id: string;
+  timestamp: number;
+  marketId: string;
+  marketQuestion: string;
+  yesAsk: number;
+  noAsk: number;
+  rawGap: number;
+  effectiveEdge: number;
+  yesDepth: number;
+  noDepth: number;
+  yesAskDepth?: number;
+  noAskDepth?: number;
+  isLowDepth: boolean;
+  polymarketUrl: string;
+  tier: 'A' | 'B';
+}
 
 interface DashboardProps {
   stats: DashboardStats | null;
@@ -15,6 +43,7 @@ const Dashboard: React.FC<DashboardProps> = ({ stats, latestSignal }) => {
   const [isStopping, setIsStopping] = useState(false);
 
   const handleStart = async () => {
+    if (!window.electronAPI) return;
     setIsStarting(true);
     try {
       await window.electronAPI.startScanning();
@@ -26,6 +55,7 @@ const Dashboard: React.FC<DashboardProps> = ({ stats, latestSignal }) => {
   };
 
   const handleStop = async () => {
+    if (!window.electronAPI) return;
     setIsStopping(true);
     try {
       await window.electronAPI.stopScanning();
@@ -43,7 +73,7 @@ const Dashboard: React.FC<DashboardProps> = ({ stats, latestSignal }) => {
         <button
           onClick={handleStart}
           disabled={isStarting || stats?.status === 'running'}
-          className="btn btn-success flex items-center gap-2"
+          className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-medium flex items-center gap-2 transition-colors"
         >
           {isStarting ? (
             <>
@@ -60,7 +90,7 @@ const Dashboard: React.FC<DashboardProps> = ({ stats, latestSignal }) => {
         <button
           onClick={handleStop}
           disabled={isStopping || stats?.status !== 'running'}
-          className="btn btn-danger flex items-center gap-2"
+          className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-medium flex items-center gap-2 transition-colors"
         >
           {isStopping ? (
             <>
@@ -107,21 +137,21 @@ const Dashboard: React.FC<DashboardProps> = ({ stats, latestSignal }) => {
       </div>
 
       {/* Connection status */}
-      <div className="card">
-        <h3 className="text-lg font-semibold mb-4">สถานะการเชื่อมต่อ</h3>
+      <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        <h3 className="text-lg font-semibold text-white mb-4">สถานะการเชื่อมต่อ</h3>
         <div className="grid grid-cols-2 gap-4">
           <div className="flex items-center gap-3">
-            <div className={`status-dot ${stats?.status === 'running' ? 'status-running' : 'status-paused'}`} />
+            <div className={`w-3 h-3 rounded-full ${stats?.status === 'running' ? 'bg-green-500' : 'bg-yellow-500'}`} />
             <div>
               <p className="text-sm text-slate-400">Signal Engine</p>
-              <p className="font-medium">{stats?.status === 'running' ? 'กำลังทำงาน' : 'หยุดอยู่'}</p>
+              <p className="font-medium text-white">{stats?.status === 'running' ? 'กำลังทำงาน' : 'หยุดอยู่'}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className={`status-dot ${stats?.wsConnected ? 'status-running' : 'status-error'}`} />
+            <div className={`w-3 h-3 rounded-full ${stats?.wsConnected ? 'bg-green-500' : 'bg-red-500'}`} />
             <div>
               <p className="text-sm text-slate-400">WebSocket</p>
-              <p className="font-medium">{stats?.wsConnected ? 'เชื่อมต่อแล้ว' : 'ไม่ได้เชื่อมต่อ'}</p>
+              <p className="font-medium text-white">{stats?.wsConnected ? 'เชื่อมต่อแล้ว' : 'ไม่ได้เชื่อมต่อ'}</p>
             </div>
           </div>
         </div>
@@ -129,7 +159,7 @@ const Dashboard: React.FC<DashboardProps> = ({ stats, latestSignal }) => {
 
       {/* Latest signal */}
       {latestSignal && (
-        <div className="card border-green-500/50 signal-card">
+        <div className="bg-slate-800 rounded-lg p-4 border border-green-500/50">
           <div className="flex items-start justify-between">
             <div>
               <h3 className="text-lg font-semibold text-green-400 flex items-center gap-2">
@@ -138,7 +168,9 @@ const Dashboard: React.FC<DashboardProps> = ({ stats, latestSignal }) => {
               </h3>
               <p className="text-slate-300 mt-2">{latestSignal.marketQuestion}</p>
             </div>
-            <span className={`tier-badge ${latestSignal.tier === 'A' ? 'tier-a' : 'tier-b'}`}>
+            <span className={`px-2 py-1 rounded text-xs font-bold ${
+              latestSignal.tier === 'A' ? 'bg-green-600 text-white' : 'bg-yellow-600 text-white'
+            }`}>
               Tier {latestSignal.tier}
             </span>
           </div>
@@ -166,13 +198,13 @@ const Dashboard: React.FC<DashboardProps> = ({ stats, latestSignal }) => {
 
           <div className="mt-4 flex items-center justify-between">
             <div className="text-sm text-slate-400">
-              Depth: YES ${latestSignal.yesAskDepth.toFixed(0)} / NO ${latestSignal.noAskDepth.toFixed(0)}
+              Depth: YES ${(latestSignal.yesAskDepth || latestSignal.yesDepth || 0).toFixed(0)} / NO ${(latestSignal.noAskDepth || latestSignal.noDepth || 0).toFixed(0)}
             </div>
             <a
               href={latestSignal.polymarketUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="btn btn-primary text-sm"
+              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm transition-colors"
             >
               เปิดใน Polymarket →
             </a>
@@ -181,7 +213,7 @@ const Dashboard: React.FC<DashboardProps> = ({ stats, latestSignal }) => {
       )}
 
       {/* Info box */}
-      <div className="card bg-blue-900/30 border-blue-700">
+      <div className="bg-blue-900/30 rounded-lg p-4 border border-blue-700">
         <h3 className="font-semibold text-blue-300 mb-2">💡 วิธีใช้งาน</h3>
         <ul className="text-sm text-slate-300 space-y-1">
           <li>• กด "เริ่มสแกน" เพื่อเริ่มตรวจจับโอกาส arbitrage</li>
@@ -205,17 +237,24 @@ interface StatCardProps {
 
 const StatCard: React.FC<StatCardProps> = ({ title, value, icon, color, subtitle }) => {
   const colorClasses = {
-    blue: 'bg-blue-600/20 border-blue-600/50 text-blue-400',
-    green: 'bg-green-600/20 border-green-600/50 text-green-400',
-    yellow: 'bg-yellow-600/20 border-yellow-600/50 text-yellow-400',
-    purple: 'bg-purple-600/20 border-purple-600/50 text-purple-400',
+    blue: 'bg-blue-600/20 border-blue-600/50',
+    green: 'bg-green-600/20 border-green-600/50',
+    yellow: 'bg-yellow-600/20 border-yellow-600/50',
+    purple: 'bg-purple-600/20 border-purple-600/50',
+  };
+
+  const textClasses = {
+    blue: 'text-blue-400',
+    green: 'text-green-400',
+    yellow: 'text-yellow-400',
+    purple: 'text-purple-400',
   };
 
   return (
-    <div className={`card ${colorClasses[color]}`}>
+    <div className={`rounded-lg p-4 border ${colorClasses[color]}`}>
       <div className="flex items-center justify-between">
         <span className="text-2xl">{icon}</span>
-        <span className="text-3xl font-bold">{value}</span>
+        <span className={`text-3xl font-bold ${textClasses[color]}`}>{value}</span>
       </div>
       <p className="mt-2 text-sm text-slate-300">{title}</p>
       {subtitle && <p className="text-xs text-slate-400">{subtitle}</p>}
