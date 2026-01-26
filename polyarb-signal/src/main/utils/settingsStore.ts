@@ -16,7 +16,8 @@ interface StoreSchema {
 }
 
 class SettingsStore {
-  private store: Store<StoreSchema>;
+  // Use any to avoid TypeScript issues with electron-store generics
+  private store: any;
 
   constructor() {
     this.store = new Store<StoreSchema>({
