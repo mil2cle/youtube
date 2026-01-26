@@ -27,7 +27,6 @@ class SettingsStore {
         pinnedMarkets: [],
         blacklistedMarkets: [],
       },
-      encryptionKey: 'polyarb-signal-encryption-key-v1',
     });
 
     logger.info('Settings store initialized');
@@ -38,16 +37,16 @@ class SettingsStore {
   // =====================================================
 
   getSettings(): AppSettings {
-    return this.store.get('settings');
+    return this.store.store.settings;
   }
 
   saveSettings(settings: AppSettings): void {
-    this.store.set('settings', settings);
+    this.store.store = { ...this.store.store, settings };
     logger.info('Settings saved');
   }
 
   resetSettings(): void {
-    this.store.set('settings', DEFAULT_SETTINGS as AppSettings);
+    this.store.store = { ...this.store.store, settings: DEFAULT_SETTINGS as AppSettings };
     logger.info('Settings reset to defaults');
   }
 
@@ -56,12 +55,12 @@ class SettingsStore {
   // =====================================================
 
   getSignalLogs(limit: number = 100): SignalLogEntry[] {
-    const logs = this.store.get('signalLogs');
+    const logs = this.store.store.signalLogs || [];
     return logs.slice(-limit);
   }
 
   addSignalLog(entry: SignalLogEntry): void {
-    const logs = this.store.get('signalLogs');
+    const logs = [...(this.store.store.signalLogs || [])];
     logs.push(entry);
     
     // Keep only last 1000 entries
@@ -69,11 +68,11 @@ class SettingsStore {
       logs.splice(0, logs.length - 1000);
     }
     
-    this.store.set('signalLogs', logs);
+    this.store.store = { ...this.store.store, signalLogs: logs };
   }
 
   clearSignalLogs(): void {
-    this.store.set('signalLogs', []);
+    this.store.store = { ...this.store.store, signalLogs: [] };
     logger.info('Signal logs cleared');
   }
 
@@ -82,23 +81,23 @@ class SettingsStore {
   // =====================================================
 
   getPinnedMarkets(): string[] {
-    return this.store.get('pinnedMarkets');
+    return this.store.store.pinnedMarkets || [];
   }
 
   addPinnedMarket(marketId: string): void {
-    const pinned = this.store.get('pinnedMarkets');
+    const pinned = [...(this.store.store.pinnedMarkets || [])];
     if (!pinned.includes(marketId)) {
       pinned.push(marketId);
-      this.store.set('pinnedMarkets', pinned);
+      this.store.store = { ...this.store.store, pinnedMarkets: pinned };
     }
   }
 
   removePinnedMarket(marketId: string): void {
-    const pinned = this.store.get('pinnedMarkets');
+    const pinned = [...(this.store.store.pinnedMarkets || [])];
     const index = pinned.indexOf(marketId);
     if (index > -1) {
       pinned.splice(index, 1);
-      this.store.set('pinnedMarkets', pinned);
+      this.store.store = { ...this.store.store, pinnedMarkets: pinned };
     }
   }
 
@@ -107,14 +106,14 @@ class SettingsStore {
   // =====================================================
 
   getBlacklistedMarkets(): string[] {
-    return this.store.get('blacklistedMarkets');
+    return this.store.store.blacklistedMarkets || [];
   }
 
   addBlacklistedMarket(marketId: string): void {
-    const blacklisted = this.store.get('blacklistedMarkets');
+    const blacklisted = [...(this.store.store.blacklistedMarkets || [])];
     if (!blacklisted.includes(marketId)) {
       blacklisted.push(marketId);
-      this.store.set('blacklistedMarkets', blacklisted);
+      this.store.store = { ...this.store.store, blacklistedMarkets: blacklisted };
     }
     
     // Remove from pinned if present
@@ -122,11 +121,11 @@ class SettingsStore {
   }
 
   removeBlacklistedMarket(marketId: string): void {
-    const blacklisted = this.store.get('blacklistedMarkets');
+    const blacklisted = [...(this.store.store.blacklistedMarkets || [])];
     const index = blacklisted.indexOf(marketId);
     if (index > -1) {
       blacklisted.splice(index, 1);
-      this.store.set('blacklistedMarkets', blacklisted);
+      this.store.store = { ...this.store.store, blacklistedMarkets: blacklisted };
     }
   }
 
@@ -136,7 +135,7 @@ class SettingsStore {
 
   exportLogs(): { logs: SignalLogEntry[]; exportedAt: string } {
     return {
-      logs: this.store.get('signalLogs'),
+      logs: this.store.store.signalLogs || [],
       exportedAt: new Date().toISOString(),
     };
   }

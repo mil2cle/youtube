@@ -7,11 +7,6 @@ import { API, RATE_LIMITS } from '../../shared/constants';
 import { GammaMarket, ParsedMarket } from '../../shared/types';
 import { logger } from '../utils/logger';
 
-interface GammaMarketsResponse {
-  data: GammaMarket[];
-  next_cursor?: string;
-}
-
 class GammaClient {
   private baseUrl = API.GAMMA_BASE;
   private lastRequestTime = 0;
@@ -109,7 +104,7 @@ class GammaClient {
           throw new Error(`Gamma API error: ${response.status} ${response.statusText}`);
         }
 
-        const markets: GammaMarket[] = await response.json();
+        const markets = (await response.json()) as GammaMarket[];
 
         if (markets.length === 0) {
           hasMore = false;
@@ -157,7 +152,7 @@ class GammaClient {
         throw new Error(`Gamma API error: ${response.status}`);
       }
 
-      const markets: GammaMarket[] = await response.json();
+      const markets = (await response.json()) as GammaMarket[];
       
       if (markets.length === 0) {
         return null;
@@ -177,7 +172,7 @@ class GammaClient {
   private parseMarket(market: GammaMarket): ParsedMarket | null {
     try {
       // Parse outcomes - ต้องเป็น YES/NO เท่านั้น
-      const outcomes = JSON.parse(market.outcomes || '[]');
+      const outcomes = JSON.parse(market.outcomes || '[]') as string[];
       if (!Array.isArray(outcomes) || outcomes.length !== 2) {
         return null;
       }
@@ -190,7 +185,7 @@ class GammaClient {
       }
 
       // Parse token IDs
-      const tokenIds = JSON.parse(market.clobTokenIds || '[]');
+      const tokenIds = JSON.parse(market.clobTokenIds || '[]') as string[];
       if (!Array.isArray(tokenIds) || tokenIds.length !== 2) {
         return null;
       }

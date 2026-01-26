@@ -7,6 +7,12 @@ import { TELEGRAM } from '../../shared/constants';
 import { ArbSignal, AppSettings } from '../../shared/types';
 import { logger } from '../utils/logger';
 
+interface TelegramResponse {
+  ok: boolean;
+  description?: string;
+  result?: unknown;
+}
+
 class TelegramNotifier {
   private botToken: string = '';
   private chatId: string = '';
@@ -107,7 +113,7 @@ class TelegramNotifier {
         }),
       });
 
-      const data = await response.json();
+      const data = (await response.json()) as TelegramResponse;
 
       if (!response.ok || !data.ok) {
         const errorMsg = data.description || 'Unknown error';

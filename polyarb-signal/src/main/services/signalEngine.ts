@@ -31,7 +31,7 @@ class SignalEngine extends EventEmitter {
   private marketStates: Map<string, MarketState> = new Map();
   private settings: AppSettings = DEFAULT_SETTINGS as AppSettings;
   private isRunning = false;
-  private scanIntervals: Map<string, NodeJS.Timeout> = new Map();
+  private scanIntervals: Map<string, ReturnType<typeof setInterval>> = new Map();
 
   /**
    * อัพเดท settings
@@ -120,7 +120,7 @@ class SignalEngine extends EventEmitter {
     this.isRunning = false;
     
     // หยุด scan ทุกตลาด
-    for (const [marketId, interval] of this.scanIntervals) {
+    for (const [, interval] of this.scanIntervals) {
       clearInterval(interval);
     }
     this.scanIntervals.clear();
@@ -348,9 +348,9 @@ class SignalEngine extends EventEmitter {
   /**
    * รับ orderbook update จาก WebSocket
    */
-  handleWSBookUpdate(assetId: string, bids: any[], asks: any[]): void {
+  handleWSBookUpdate(assetId: string, bids: { price: string; size: string }[], asks: { price: string; size: string }[]): void {
     // หาตลาดที่มี asset นี้
-    for (const [marketId, state] of this.marketStates) {
+    for (const [, state] of this.marketStates) {
       if (state.market.yesTokenId === assetId) {
         state.yesOrderbook = {
           market: state.market.conditionId,

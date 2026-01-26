@@ -22,7 +22,7 @@ class WebSocketClient extends EventEmitter {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
   private reconnectDelay = 1000;
-  private pingInterval: NodeJS.Timeout | null = null;
+  private pingInterval: ReturnType<typeof setInterval> | null = null;
   private isConnecting = false;
   private shouldReconnect = true;
 
@@ -68,7 +68,7 @@ class WebSocketClient extends EventEmitter {
         });
 
         this.ws.on('close', (code, reason) => {
-          logger.warn(`WebSocket ปิดการเชื่อมต่อ: ${code} - ${reason}`);
+          logger.warn(`WebSocket ปิดการเชื่อมต่อ: ${code} - ${reason.toString()}`);
           this.isConnecting = false;
           this.stopPingInterval();
           this.emit('disconnected');
@@ -78,8 +78,8 @@ class WebSocketClient extends EventEmitter {
           }
         });
 
-        this.ws.on('error', (error) => {
-          logger.error('WebSocket error:', error);
+        this.ws.on('error', (error: Error) => {
+          logger.error('WebSocket error:', error.message);
           this.isConnecting = false;
           this.emit('error', error);
           
@@ -175,7 +175,7 @@ class WebSocketClient extends EventEmitter {
         this.emit('price_change', message as WSPriceChangeMessage);
         break;
       default:
-        logger.debug('Unknown message type:', (message as any).event_type);
+        logger.debug('Unknown message type:', message.event_type);
     }
   }
 

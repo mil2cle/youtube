@@ -4,7 +4,7 @@
 // =====================================================
 
 import { API, RATE_LIMITS } from '../../shared/constants';
-import { Orderbook, OrderbookLevel } from '../../shared/types';
+import { Orderbook } from '../../shared/types';
 import { logger } from '../utils/logger';
 
 interface ClobBookResponse {
@@ -73,7 +73,6 @@ class ClobClient {
       const startTime = Date.now();
       
       const response = await fetch(url);
-      const latency = Date.now() - startTime;
 
       if (!response.ok) {
         if (response.status === 429) {
@@ -88,7 +87,7 @@ class ClobClient {
         throw new Error(`CLOB API error: ${response.status}`);
       }
 
-      const data: ClobBookResponse = await response.json();
+      const data = (await response.json()) as ClobBookResponse;
 
       return {
         market: data.market,
