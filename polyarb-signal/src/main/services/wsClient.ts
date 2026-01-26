@@ -15,6 +15,18 @@ interface WSSubscription {
   assets_ids: string[];
 }
 
+// Raw message from WebSocket (before type narrowing)
+interface RawWSMessage {
+  event_type?: string;
+  asset_id?: string;
+  market?: string;
+  bids?: { price: string; size: string }[];
+  asks?: { price: string; size: string }[];
+  timestamp?: string;
+  hash?: string;
+  price_changes?: unknown[];
+}
+
 class WebSocketClient extends EventEmitter {
   private ws: WebSocket | null = null;
   private url = API.WS_CLOB;
@@ -60,7 +72,7 @@ class WebSocketClient extends EventEmitter {
 
         this.ws.on('message', (data: WebSocket.Data) => {
           try {
-            const message = JSON.parse(data.toString()) as WSMessage;
+            const message = JSON.parse(data.toString()) as RawWSMessage;
             this.handleMessage(message);
           } catch (error) {
             logger.error('Error parsing WebSocket message:', error);
@@ -166,16 +178,15 @@ class WebSocketClient extends EventEmitter {
   /**
    * จัดการ message ที่ได้รับ
    */
-  private handleMessage(message: WSMessage): void {
-    switch (message.event_type) {
-      case 'book':
-        this.emit('book', message as WSBookMessage);
-        break;
-      case 'price_change':
-        this.emit('price_change', message as WSPriceChangeMessage);
-        break;
-      default:
-        logger.debug('Unknown message type:', message.event_type);
+  private handleMessage(message: RawWSMessage): void {
+    const eventType = message.event_type;
+    
+    if (eventType === 'book') {
+      this.emit('book', message as unknown as WSBookMessage);
+    } else if (eventType === 'price_change') {
+      this.emit('price_change', message as unknown as WSPriceChangeMessage);
+    } else if (eventType) {
+      logger.debug('Unknown message type:', eventType);
     }
   }
 
