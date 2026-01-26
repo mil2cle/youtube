@@ -22,7 +22,7 @@
     "better-sqlite3": "^11.7.0",
     "electron-store": "^10.0.0",
     "keytar": "^7.9.0",
-    "pino": "^9.6.0",
+    "uuid": "^11.0.5",
     "ws": "^8.18.0"
   },
   "devDependencies": {
@@ -30,6 +30,7 @@
     "@types/node": "^22.10.7",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",
+    "@types/uuid": "^10.0.0",
     "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
@@ -56,6 +57,9 @@
       "dist/**/*",
       "assets/**/*"
     ],
+    "extraMetadata": {
+      "main": "dist/main/index.js"
+    },
     "win": {
       "target": [
         {
