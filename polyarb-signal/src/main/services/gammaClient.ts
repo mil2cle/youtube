@@ -61,10 +61,19 @@ class GammaClient {
     const allMarkets: ParsedMarket[] = [];
     let offset = 0;
     let hasMore = true;
+    let pageCount = 0;
+    const maxPages = 10; // Limit to prevent infinite loops
 
-    logger.info('เริ่มดึงข้อมูลตลาดจาก Gamma API...');
+    logger.info(`เริ่มดึงข้อมูลตลาดจาก Gamma API (minLiq: $${minLiquidity}, minVol: $${minVolume24h})...`);
 
     while (hasMore) {
+      // Check max pages limit
+      pageCount++;
+      if (pageCount > maxPages) {
+        logger.warn(`Reached max pages limit (${maxPages}), stopping fetch`);
+        break;
+      }
+      
       try {
         await this.waitForRateLimit();
 
@@ -88,7 +97,22 @@ class GammaClient {
         const url = `${this.baseUrl}/markets?${params.toString()}`;
         logger.debug(`Fetching: ${url}`);
 
-        const response = await fetch(url);
+        // Add timeout for fetch request
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+        
+        let response;
+        try {
+          response = await fetch(url, { signal: controller.signal });
+        } catch (fetchError) {
+          clearTimeout(timeoutId);
+          if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+            throw new Error('Request timeout - Gamma API ไม่ตอบสนองภายใน 30 วินาที');
+          }
+          throw fetchError;
+        } finally {
+          clearTimeout(timeoutId);
+        }
         
         if (!response.ok) {
           if (response.status === 429) {
@@ -126,7 +150,7 @@ class GammaClient {
           hasMore = false;
         }
 
-        logger.debug(`ดึงได้ ${markets.length} ตลาด, รวม ${allMarkets.length} ตลาด binary`);
+        logger.info(`Page ${pageCount}: ดึงได้ ${markets.length} ตลาด, รวม ${allMarkets.length} ตลาด binary`);
 
       } catch (error) {
         logger.error('Error fetching markets:', error);

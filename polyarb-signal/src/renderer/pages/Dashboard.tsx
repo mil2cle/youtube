@@ -41,13 +41,21 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ stats, latestSignal }) => {
   const [isStarting, setIsStarting] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleStart = async () => {
     if (!window.electronAPI) return;
     setIsStarting(true);
+    setErrorMessage(null);
     try {
-      await window.electronAPI.startScanning();
+      const result = await window.electronAPI.startScanning();
+      if (result && !result.success) {
+        setErrorMessage(result.error || 'เกิดข้อผิดพลาดในการเริ่มสแกน');
+        console.error('Start scanning failed:', result.error);
+      }
     } catch (error) {
+      const errMsg = error instanceof Error ? error.message : 'เกิดข้อผิดพลาด';
+      setErrorMessage(errMsg);
       console.error('Error starting:', error);
     } finally {
       setIsStarting(false);
@@ -57,6 +65,7 @@ const Dashboard: React.FC<DashboardProps> = ({ stats, latestSignal }) => {
   const handleStop = async () => {
     if (!window.electronAPI) return;
     setIsStopping(true);
+    setErrorMessage(null);
     try {
       await window.electronAPI.stopScanning();
     } catch (error) {
@@ -68,6 +77,23 @@ const Dashboard: React.FC<DashboardProps> = ({ stats, latestSignal }) => {
 
   return (
     <div className="space-y-6">
+      {/* Error message */}
+      {errorMessage && (
+        <div className="bg-red-900/50 border border-red-500 rounded-lg p-4 flex items-start gap-3">
+          <span className="text-red-400 text-xl">⚠️</span>
+          <div>
+            <h4 className="font-semibold text-red-400">เกิดข้อผิดพลาด</h4>
+            <p className="text-red-300 text-sm mt-1">{errorMessage}</p>
+            <button
+              onClick={() => setErrorMessage(null)}
+              className="mt-2 text-xs text-red-400 hover:text-red-300 underline"
+            >
+              ปิดข้อความนี้
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Control buttons */}
       <div className="flex gap-4">
         <button

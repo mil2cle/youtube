@@ -160,55 +160,74 @@ function createTray(): void {
 // =====================================================
 
 async function startScanning(): Promise<void> {
+  logger.info('เริ่มการสแกน...');
+  
+  // Step 1: Load settings
+  logger.info('Step 1: Loading settings...');
+  const settings = settingsStore.getSettings();
+  logger.info('Settings loaded successfully');
+  
+  // Step 2: Configure services
+  logger.info('Step 2: Configuring services...');
+  signalEngine.updateSettings(settings);
+  tieringSystem.updateSettings(settings);
+  telegramNotifier.configure(settings.telegram);
+  logger.info('Services configured');
+
+  // Step 3: Load pinned and blacklisted markets
+  logger.info('Step 3: Loading pinned/blacklisted markets...');
+  const pinnedMarkets = settingsStore.getPinnedMarkets();
+  const blacklistedMarkets = settingsStore.getBlacklistedMarkets();
+  pinnedMarkets.forEach(id => tieringSystem.pinMarket(id));
+  blacklistedMarkets.forEach(id => tieringSystem.blacklistMarket(id));
+  logger.info(`Loaded ${pinnedMarkets.length} pinned, ${blacklistedMarkets.length} blacklisted`);
+
+  // Step 4: Fetch markets from Gamma API
+  logger.info('Step 4: Fetching markets from Gamma API...');
+  let markets;
   try {
-    logger.info('เริ่มการสแกน...');
-    
-    const settings = settingsStore.getSettings();
-    
-    // Configure services
-    signalEngine.updateSettings(settings);
-    tieringSystem.updateSettings(settings);
-    telegramNotifier.configure(settings.telegram);
-
-    // Load pinned and blacklisted markets
-    const pinnedMarkets = settingsStore.getPinnedMarkets();
-    const blacklistedMarkets = settingsStore.getBlacklistedMarkets();
-    pinnedMarkets.forEach(id => tieringSystem.pinMarket(id));
-    blacklistedMarkets.forEach(id => tieringSystem.blacklistMarket(id));
-
-    // Fetch markets from Gamma API
-    const markets = await gammaClient.fetchActiveMarkets(
+    markets = await gammaClient.fetchActiveMarkets(
       settings.filters.minLiquidityUsd,
       settings.filters.minVolume24hUsd
     );
-
-    // Filter and add markets
-    for (const market of markets) {
-      if (tieringSystem.passesFilters(market)) {
-        const tier = pinnedMarkets.includes(market.id) ? 'A' : 'B';
-        signalEngine.addMarket(market, tier);
-      }
-    }
-
-    // Start signal engine
-    signalEngine.start();
-
-    // Try to connect WebSocket (optional)
-    try {
-      await wsClient.connect();
-    } catch (error) {
-      logger.warn('WebSocket connection failed, using REST polling only');
-    }
-
-    // Update UI
-    sendStatusUpdate();
-    
-    logger.info(`สแกนเริ่มต้นแล้ว: ${markets.length} ตลาด`);
-
+    logger.info(`Fetched ${markets.length} markets from Gamma API`);
   } catch (error) {
-    logger.error(`Error starting scanning: ${error}`);
-    throw error;
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    logger.error(`Failed to fetch markets from Gamma API: ${errorMsg}`);
+    throw new Error(`ไม่สามารถดึงข้อมูลตลาดได้: ${errorMsg}`);
   }
+
+  // Step 5: Filter and add markets
+  logger.info('Step 5: Filtering and adding markets...');
+  let addedCount = 0;
+  for (const market of markets) {
+    if (tieringSystem.passesFilters(market)) {
+      const tier = pinnedMarkets.includes(market.id) ? 'A' : 'B';
+      signalEngine.addMarket(market, tier);
+      addedCount++;
+    }
+  }
+  logger.info(`Added ${addedCount} markets to signal engine`);
+
+  // Step 6: Start signal engine
+  logger.info('Step 6: Starting signal engine...');
+  signalEngine.start();
+  logger.info('Signal engine started');
+
+  // Step 7: Try to connect WebSocket (optional)
+  logger.info('Step 7: Connecting WebSocket (optional)...');
+  try {
+    await wsClient.connect();
+    logger.info('WebSocket connected');
+  } catch (error) {
+    logger.warn('WebSocket connection failed, using REST polling only');
+  }
+
+  // Step 8: Update UI
+  logger.info('Step 8: Updating UI...');
+  sendStatusUpdate();
+  
+  logger.info(`✅ สแกนเริ่มต้นแล้ว: ${addedCount}/${markets.length} ตลาด`);
 }
 
 function stopScanning(): void {
@@ -318,8 +337,14 @@ function setupIpcHandlers(): void {
 
   // Scanning
   ipcMain.handle(IPC_CHANNELS.START_SCANNING, async () => {
-    await startScanning();
-    return { success: true };
+    try {
+      await startScanning();
+      return { success: true };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      logger.error(`IPC START_SCANNING error: ${errorMsg}`);
+      return { success: false, error: errorMsg };
+    }
   });
 
   ipcMain.handle(IPC_CHANNELS.STOP_SCANNING, () => {
