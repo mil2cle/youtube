@@ -2,6 +2,20 @@
 
 All notable changes to PolyArb Signal will be documented in this file.
 
+## [1.0.1] - 2026-01-27
+
+### Fixed
+- **Start Scanning button hanging**: IPC handler now properly returns response on error
+- Added 30-second timeout for Gamma API requests to prevent indefinite waiting
+- Added max pages limit (10) to prevent infinite loops when fetching markets
+
+### Improved
+- Dashboard now displays error messages when scanning fails
+- Added step-by-step logging for easier debugging
+- Changed build target to portable directory format
+
+---
+
 ## [1.0.0] - 2026-01-26
 
 ### Added

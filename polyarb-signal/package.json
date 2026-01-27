@@ -1,6 +1,6 @@
 {
   "name": "polyarb-signal",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "PolyArb Signal - Polymarket Arbitrage Detection Tool with Telegram Notifications",
   "main": "dist/main/index.js",
   "scripts": {
