@@ -227,8 +227,14 @@ class SignalEngine extends EventEmitter {
    * ตรวจสอบว่ามี arbitrage signal หรือไม่
    */
   private checkForSignal(state: MarketState, latencyMs: number): void {
-    const yesAsk = clobClient.getBestAsk(state.yesOrderbook!);
-    const noAsk = clobClient.getBestAsk(state.noOrderbook!);
+    // ตรวจสอบว่ามี orderbook ครบทั้งคู่
+    if (!state.yesOrderbook || !state.noOrderbook) {
+      state.debounceStart = null;
+      return;
+    }
+
+    const yesAsk = clobClient.getBestAsk(state.yesOrderbook);
+    const noAsk = clobClient.getBestAsk(state.noOrderbook);
 
     if (!yesAsk || !noAsk) {
       state.debounceStart = null;
@@ -366,6 +372,12 @@ class SignalEngine extends EventEmitter {
    * รับ orderbook update จาก WebSocket
    */
   handleWSBookUpdate(assetId: string, bids: { price: string; size: string }[], asks: { price: string; size: string }[]): void {
+    // ตรวจสอบว่า bids/asks ไม่เป็น null/undefined
+    if (!bids || !asks) {
+      logger.debug(`WS book update skipped: bids or asks is null for ${assetId}`);
+      return;
+    }
+
     // หาตลาดที่มี asset นี้
     for (const [, state] of this.marketStates) {
       if (state.market.yesTokenId === assetId) {
@@ -374,14 +386,17 @@ class SignalEngine extends EventEmitter {
           assetId,
           timestamp: Date.now().toString(),
           hash: '',
-          bids,
-          asks,
+          bids: bids || [],
+          asks: asks || [],
           minOrderSize: '0.01',
           tickSize: '0.01',
           negRisk: false,
         };
         state.market.lastUpdate = Date.now();
-        this.checkForSignal(state, 0);
+        // เช็ค signal เฉพาะเมื่อมี orderbook ครบทั้งคู่
+        if (state.yesOrderbook && state.noOrderbook) {
+          this.checkForSignal(state, 0);
+        }
         break;
       }
       if (state.market.noTokenId === assetId) {
@@ -390,14 +405,17 @@ class SignalEngine extends EventEmitter {
           assetId,
           timestamp: Date.now().toString(),
           hash: '',
-          bids,
-          asks,
+          bids: bids || [],
+          asks: asks || [],
           minOrderSize: '0.01',
           tickSize: '0.01',
           negRisk: false,
         };
         state.market.lastUpdate = Date.now();
-        this.checkForSignal(state, 0);
+        // เช็ค signal เฉพาะเมื่อมี orderbook ครบทั้งคู่
+        if (state.yesOrderbook && state.noOrderbook) {
+          this.checkForSignal(state, 0);
+        }
         break;
       }
     }
