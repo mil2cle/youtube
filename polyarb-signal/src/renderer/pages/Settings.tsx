@@ -35,6 +35,15 @@ interface AppSettings {
   };
 }
 
+interface WSStatusInfo {
+  status: 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'degraded' | 'error';
+  message: string;
+  messagesReceived: number;
+  lastMessageTime: number | null;
+  reconnectAttempts: number;
+  subscribedAssets: number;
+}
+
 const DEFAULT_SETTINGS: AppSettings = {
   telegram: {
     botToken: '',
@@ -69,11 +78,20 @@ const Settings: React.FC = () => {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [isTestingWs, setIsTestingWs] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null);
+  const [wsTestResult, setWsTestResult] = useState<{ success: boolean; message: string; messagesReceived: number; latencyMs: number } | null>(null);
+  const [wsStatus, setWsStatus] = useState<WSStatusInfo | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [testTokenIds, setTestTokenIds] = useState<string>('');
 
   useEffect(() => {
     loadSettings();
+    loadWsStatus();
+    
+    // Poll WS status every 5 seconds
+    const interval = setInterval(loadWsStatus, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const loadSettings = async () => {
@@ -83,6 +101,16 @@ const Settings: React.FC = () => {
       setSettings(loadedSettings);
     } catch (error) {
       console.error('Error loading settings:', error);
+    }
+  };
+
+  const loadWsStatus = async () => {
+    if (!window.electronAPI?.getWsStatus) return;
+    try {
+      const status = await window.electronAPI.getWsStatus();
+      setWsStatus(status);
+    } catch (error) {
+      console.error('Error loading WS status:', error);
     }
   };
 
@@ -107,7 +135,6 @@ const Settings: React.FC = () => {
     setIsTesting(true);
     setTestResult(null);
     try {
-      // ส่ง credentials ที่กรอกใน form ไปทดสอบโดยตรง
       const result = await window.electronAPI.testTelegram({
         botToken: settings.telegram.botToken,
         chatId: settings.telegram.chatId,
@@ -117,6 +144,50 @@ const Settings: React.FC = () => {
       setTestResult({ success: false, error: 'เกิดข้อผิดพลาด' });
     } finally {
       setIsTesting(false);
+    }
+  };
+
+  const handleTestWebSocket = async () => {
+    if (!window.electronAPI?.testWebSocket) return;
+    setIsTestingWs(true);
+    setWsTestResult(null);
+    try {
+      // Parse token IDs from input or use default test tokens
+      let tokenIds: string[] = [];
+      if (testTokenIds.trim()) {
+        tokenIds = testTokenIds.split(',').map(id => id.trim()).filter(id => id.length > 0);
+      }
+      
+      // If no custom tokens, get some from markets
+      if (tokenIds.length === 0) {
+        const markets = await window.electronAPI.getMarkets();
+        if (markets && markets.length > 0) {
+          // Get first 2 markets' token IDs
+          tokenIds = markets.slice(0, 2).flatMap((m: any) => [m.yesTokenId, m.noTokenId]);
+        }
+      }
+
+      if (tokenIds.length === 0) {
+        setWsTestResult({
+          success: false,
+          message: 'ไม่มี token ID สำหรับทดสอบ กรุณาเริ่มสแกนก่อน',
+          messagesReceived: 0,
+          latencyMs: 0,
+        });
+        return;
+      }
+
+      const result = await window.electronAPI.testWebSocket(tokenIds);
+      setWsTestResult(result);
+    } catch (error) {
+      setWsTestResult({
+        success: false,
+        message: `เกิดข้อผิดพลาด: ${error}`,
+        messagesReceived: 0,
+        latencyMs: 0,
+      });
+    } finally {
+      setIsTestingWs(false);
     }
   };
 
@@ -132,6 +203,28 @@ const Settings: React.FC = () => {
         [key]: value,
       },
     }));
+  };
+
+  const getWsStatusColor = (status: string) => {
+    switch (status) {
+      case 'connected': return 'text-green-400';
+      case 'connecting':
+      case 'reconnecting': return 'text-yellow-400';
+      case 'degraded': return 'text-orange-400';
+      case 'error': return 'text-red-400';
+      default: return 'text-slate-400';
+    }
+  };
+
+  const getWsStatusText = (status: string) => {
+    switch (status) {
+      case 'connected': return '🟢 เชื่อมต่อแล้ว';
+      case 'connecting': return '🟡 กำลังเชื่อมต่อ...';
+      case 'reconnecting': return '🟡 กำลังเชื่อมต่อใหม่...';
+      case 'degraded': return '🟠 Degraded (ใช้ REST)';
+      case 'error': return '🔴 Error';
+      default: return '⚪ ไม่ได้เชื่อมต่อ';
+    }
   };
 
   return (
@@ -185,6 +278,83 @@ const Settings: React.FC = () => {
                 {testResult.success ? '✓ สำเร็จ' : `✗ ${testResult.error}`}
               </span>
             )}
+          </div>
+        </div>
+      </div>
+
+      {/* WebSocket Settings */}
+      <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <span>🔌</span>
+          WebSocket (Real-time Updates)
+        </h3>
+        
+        <div className="space-y-4">
+          {/* Status Display */}
+          <div className="bg-slate-700/50 rounded-lg p-3">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-slate-400">สถานะ:</span>
+                <span className={`ml-2 ${wsStatus ? getWsStatusColor(wsStatus.status) : 'text-slate-400'}`}>
+                  {wsStatus ? getWsStatusText(wsStatus.status) : '⚪ ไม่ทราบ'}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400">Messages รับ:</span>
+                <span className="ml-2 text-white">{wsStatus?.messagesReceived || 0}</span>
+              </div>
+              <div>
+                <span className="text-slate-400">Subscribed:</span>
+                <span className="ml-2 text-white">{wsStatus?.subscribedAssets || 0} tokens</span>
+              </div>
+              <div>
+                <span className="text-slate-400">รายละเอียด:</span>
+                <span className="ml-2 text-slate-300 text-xs">{wsStatus?.message || '-'}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Test Token IDs Input */}
+          <div>
+            <label className="block text-sm text-slate-400 mb-1">
+              Token IDs สำหรับทดสอบ (ไม่บังคับ)
+            </label>
+            <input
+              type="text"
+              className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 text-sm"
+              placeholder="เว้นว่างเพื่อใช้ token จากตลาดที่กำลังสแกน"
+              value={testTokenIds}
+              onChange={(e) => setTestTokenIds(e.target.value)}
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              คั่นด้วย comma ถ้าต้องการทดสอบหลาย token
+            </p>
+          </div>
+
+          {/* Test Button */}
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleTestWebSocket}
+              disabled={isTestingWs}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+            >
+              {isTestingWs ? 'กำลังทดสอบ (10 วินาที)...' : '🧪 Test WebSocket'}
+            </button>
+            {wsTestResult && (
+              <span className={wsTestResult.success ? 'text-green-400' : 'text-yellow-400'}>
+                {wsTestResult.success 
+                  ? `✓ ${wsTestResult.message}` 
+                  : `⚠ ${wsTestResult.message}`}
+              </span>
+            )}
+          </div>
+
+          {/* Info Box */}
+          <div className="bg-blue-900/30 border border-blue-700/50 rounded-lg p-3 text-sm">
+            <p className="text-blue-300">
+              <strong>💡 หมายเหตุ:</strong> WebSocket ใช้สำหรับรับ real-time orderbook updates
+              จาก Polymarket ถ้าเชื่อมต่อไม่ได้ แอปจะใช้ REST polling แทน (Degraded mode)
+            </p>
           </div>
         </div>
       </div>

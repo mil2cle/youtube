@@ -12,11 +12,14 @@ const IPC_CHANNELS = {
   STATS_UPDATE: 'stats:update',
   LOG_UPDATE: 'log:update',
   STATUS_CHANGE: 'status:change',
+  WS_STATUS_UPDATE: 'ws:status:update',
   
   // Renderer -> Main
   GET_SETTINGS: 'settings:get',
   SAVE_SETTINGS: 'settings:save',
   TEST_TELEGRAM: 'telegram:test',
+  TEST_WEBSOCKET: 'websocket:test',
+  GET_WS_STATUS: 'websocket:status',
   START_SCANNING: 'scanning:start',
   STOP_SCANNING: 'scanning:stop',
   GET_STATS: 'stats:get',
@@ -37,6 +40,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Telegram
   testTelegram: (credentials?: { botToken: string; chatId: string }) => 
     ipcRenderer.invoke(IPC_CHANNELS.TEST_TELEGRAM, credentials),
+
+  // WebSocket
+  testWebSocket: (tokenIds: string[]) => ipcRenderer.invoke(IPC_CHANNELS.TEST_WEBSOCKET, tokenIds),
+  getWsStatus: () => ipcRenderer.invoke(IPC_CHANNELS.GET_WS_STATUS),
 
   // Scanning
   startScanning: () => ipcRenderer.invoke(IPC_CHANNELS.START_SCANNING),
@@ -68,6 +75,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onStatusChange: (callback: (status: any) => void) => {
     ipcRenderer.on(IPC_CHANNELS.STATUS_CHANGE, (_, status) => callback(status));
   },
+  onWsStatusUpdate: (callback: (status: any) => void) => {
+    ipcRenderer.on(IPC_CHANNELS.WS_STATUS_UPDATE, (_, status) => callback(status));
+  },
 
   // Remove listeners
   removeAllListeners: (channel: string) => {
@@ -82,6 +92,8 @@ declare global {
       getSettings: () => Promise<any>;
       saveSettings: (settings: any) => Promise<{ success: boolean }>;
       testTelegram: (credentials?: { botToken: string; chatId: string }) => Promise<{ success: boolean; error?: string }>;
+      testWebSocket: (tokenIds: string[]) => Promise<{ success: boolean; message: string; messagesReceived: number; latencyMs: number }>;
+      getWsStatus: () => Promise<any>;
       startScanning: () => Promise<{ success: boolean }>;
       stopScanning: () => Promise<{ success: boolean }>;
       getStats: () => Promise<any>;
@@ -95,6 +107,7 @@ declare global {
       onStatsUpdate: (callback: (stats: any) => void) => void;
       onLogUpdate: (callback: (log: any) => void) => void;
       onStatusChange: (callback: (status: any) => void) => void;
+      onWsStatusUpdate: (callback: (status: any) => void) => void;
       removeAllListeners: (channel: string) => void;
     };
   }

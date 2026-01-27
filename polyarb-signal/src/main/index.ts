@@ -214,13 +214,29 @@ async function startScanning(): Promise<void> {
   signalEngine.start();
   logger.info('Signal engine started');
 
-  // Step 7: Try to connect WebSocket (optional)
+  // Step 7: Try to connect WebSocket and subscribe to markets
   logger.info('Step 7: Connecting WebSocket (optional)...');
   try {
     await wsClient.connect();
-    logger.info('WebSocket connected');
+    logger.info('✅ WebSocket connected to /ws/market');
+    
+    // Subscribe to all market token IDs
+    const allTokenIds: string[] = [];
+    for (const market of markets) {
+      if (tieringSystem.passesFilters(market)) {
+        allTokenIds.push(market.yesTokenId, market.noTokenId);
+      }
+    }
+    
+    if (allTokenIds.length > 0) {
+      logger.info(`📤 Subscribing to ${allTokenIds.length} token IDs...`);
+      wsClient.subscribeToAssets(allTokenIds);
+      logger.info(`✅ Subscription sent for ${allTokenIds.length} tokens`);
+    }
   } catch (error) {
-    logger.warn('WebSocket connection failed, using REST polling only');
+    const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+    logger.warn(`WebSocket connection failed: ${errorMsg}`);
+    logger.info('Falling back to REST polling only (Degraded mode)');
   }
 
   // Step 8: Update UI
@@ -400,6 +416,27 @@ function setupIpcHandlers(): void {
     settingsStore.addBlacklistedMarket(marketId);
     signalEngine.removeMarket(marketId);
     return { success: true };
+  });
+
+  // WebSocket
+  ipcMain.handle(IPC_CHANNELS.GET_WS_STATUS, () => {
+    return wsClient.getStatusInfo();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.TEST_WEBSOCKET, async (_, tokenIds: string[]) => {
+    if (!wsClient.isConnected()) {
+      try {
+        await wsClient.connect();
+      } catch (error) {
+        return {
+          success: false,
+          message: `ไม่สามารถเชื่อมต่อ WebSocket: ${error}`,
+          messagesReceived: 0,
+          latencyMs: 0,
+        };
+      }
+    }
+    return wsClient.testConnection(tokenIds);
   });
 }
 

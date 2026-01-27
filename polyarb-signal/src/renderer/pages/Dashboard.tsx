@@ -13,6 +13,9 @@ interface DashboardStats {
   lastScanTime: number;
   status: 'running' | 'paused' | 'error';
   wsConnected: boolean;
+  wsStatus?: 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'degraded' | 'error';
+  wsMessage?: string;
+  wsMessagesReceived?: number;
 }
 
 interface ArbSignal {
@@ -37,6 +40,29 @@ interface DashboardProps {
   stats: DashboardStats | null;
   latestSignal: ArbSignal | null;
 }
+
+// Helper functions for WebSocket status
+const getWsStatusColor = (status?: string): string => {
+  switch (status) {
+    case 'connected': return 'bg-green-500';
+    case 'connecting':
+    case 'reconnecting': return 'bg-yellow-500 animate-pulse';
+    case 'degraded': return 'bg-orange-500';
+    case 'error': return 'bg-red-500';
+    default: return 'bg-slate-500';
+  }
+};
+
+const getWsStatusText = (status?: string, connected?: boolean): string => {
+  switch (status) {
+    case 'connected': return 'เชื่อมต่อแล้ว';
+    case 'connecting': return 'กำลังเชื่อมต่อ...';
+    case 'reconnecting': return 'กำลังเชื่อมต่อใหม่...';
+    case 'degraded': return 'Degraded (ใช้ REST)';
+    case 'error': return 'Error';
+    default: return connected ? 'เชื่อมต่อแล้ว' : 'ไม่ได้เชื่อมต่อ';
+  }
+};
 
 const Dashboard: React.FC<DashboardProps> = ({ stats, latestSignal }) => {
   const [isStarting, setIsStarting] = useState(false);
@@ -174,10 +200,16 @@ const Dashboard: React.FC<DashboardProps> = ({ stats, latestSignal }) => {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className={`w-3 h-3 rounded-full ${stats?.wsConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+            <div className={`w-3 h-3 rounded-full ${getWsStatusColor(stats?.wsStatus)}`} />
             <div>
               <p className="text-sm text-slate-400">WebSocket</p>
-              <p className="font-medium text-white">{stats?.wsConnected ? 'เชื่อมต่อแล้ว' : 'ไม่ได้เชื่อมต่อ'}</p>
+              <p className="font-medium text-white">{getWsStatusText(stats?.wsStatus, stats?.wsConnected)}</p>
+              {stats?.wsMessage && (
+                <p className="text-xs text-slate-400 mt-0.5">{stats.wsMessage}</p>
+              )}
+              {stats?.wsMessagesReceived !== undefined && stats.wsMessagesReceived > 0 && (
+                <p className="text-xs text-green-400 mt-0.5">📨 {stats.wsMessagesReceived} messages</p>
+              )}
             </div>
           </div>
         </div>

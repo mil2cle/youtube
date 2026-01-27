@@ -182,6 +182,16 @@ export interface SignalLogEntry {
   tier: MarketTier;
 }
 
+// WebSocket status info
+export interface WSStatusInfo {
+  status: 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'degraded' | 'error';
+  message: string;
+  messagesReceived: number;
+  lastMessageTime: number | null;
+  reconnectAttempts: number;
+  subscribedAssets: number;
+}
+
 // IPC channel names
 export const IPC_CHANNELS = {
   // Main -> Renderer
@@ -189,11 +199,14 @@ export const IPC_CHANNELS = {
   STATS_UPDATE: 'stats:update',
   LOG_UPDATE: 'log:update',
   STATUS_CHANGE: 'status:change',
+  WS_STATUS_UPDATE: 'ws:status:update',
   
   // Renderer -> Main
   GET_SETTINGS: 'settings:get',
   SAVE_SETTINGS: 'settings:save',
   TEST_TELEGRAM: 'telegram:test',
+  TEST_WEBSOCKET: 'websocket:test',
+  GET_WS_STATUS: 'websocket:status',
   START_SCANNING: 'scanning:start',
   STOP_SCANNING: 'scanning:stop',
   GET_STATS: 'stats:get',

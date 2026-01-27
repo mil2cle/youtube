@@ -6,7 +6,7 @@
 export const API = {
   GAMMA_BASE: 'https://gamma-api.polymarket.com',
   CLOB_BASE: 'https://clob.polymarket.com',
-  WS_CLOB: 'wss://ws-subscriptions-clob.polymarket.com/ws/',
+  WS_CLOB: 'wss://ws-subscriptions-clob.polymarket.com/ws/market', // ต้องใช้ /ws/market สำหรับ public market channel
 } as const;
 
 // Polymarket URLs
