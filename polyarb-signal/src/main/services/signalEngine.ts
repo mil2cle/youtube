@@ -424,7 +424,7 @@ class SignalEngine extends EventEmitter {
   /**
    * รับสถิติ
    */
-  getStats(): { totalMarkets: number; tierAMarkets: number; tierBMarkets: number } {
+  getStats(): { totalMarkets: number; tierAMarkets: number; tierBMarkets: number; isRunning: boolean } {
     let tierA = 0;
     let tierB = 0;
 
@@ -437,6 +437,7 @@ class SignalEngine extends EventEmitter {
       totalMarkets: this.marketStates.size,
       tierAMarkets: tierA,
       tierBMarkets: tierB,
+      isRunning: this.isRunning,
     };
   }
 

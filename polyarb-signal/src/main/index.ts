@@ -313,7 +313,7 @@ function sendStatusUpdate(): void {
       l => l.timestamp > Date.now() - 24 * 60 * 60 * 1000
     ).length,
     lastScanTime: Date.now(),
-    status: signalEngine.getStats().totalMarkets > 0 ? 'running' : 'paused',
+    status: stats.isRunning ? 'running' : 'paused',
     wsConnected: wsClient.isConnected(),
   };
 
@@ -379,7 +379,7 @@ function setupIpcHandlers(): void {
         l => l.timestamp > Date.now() - 24 * 60 * 60 * 1000
       ).length,
       lastScanTime: Date.now(),
-      status: stats.totalMarkets > 0 ? 'running' : 'paused',
+      status: stats.isRunning ? 'running' : 'paused',
       wsConnected: wsClient.isConnected(),
     };
   });

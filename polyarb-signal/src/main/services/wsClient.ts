@@ -199,12 +199,20 @@ class WebSocketClient extends EventEmitter {
     this.clearSubscriptionBatch();
     
     if (this.ws) {
-      this.ws.close();
+      // Remove all listeners before closing to prevent reconnect
+      this.ws.removeAllListeners();
+      try {
+        this.ws.close(1000, 'User requested disconnect');
+      } catch (e) {
+        // Ignore close errors
+      }
       this.ws = null;
     }
     
     this.subscribedAssets.clear();
     this.pendingSubscriptions.clear();
+    this.reconnectAttempts = 0;
+    this.isConnecting = false;
     this.updateStatus('disconnected', 'ปิดการเชื่อมต่อแล้ว');
     logger.info('WebSocket ปิดการเชื่อมต่อแล้ว');
   }
