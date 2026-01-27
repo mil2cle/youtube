@@ -4,7 +4,29 @@
 // =====================================================
 
 import { contextBridge, ipcRenderer } from 'electron';
-import { IPC_CHANNELS } from '../shared/types';
+
+// Define IPC channels locally to avoid import issues
+const IPC_CHANNELS = {
+  // Main -> Renderer
+  SIGNAL_DETECTED: 'signal:detected',
+  STATS_UPDATE: 'stats:update',
+  LOG_UPDATE: 'log:update',
+  STATUS_CHANGE: 'status:change',
+  
+  // Renderer -> Main
+  GET_SETTINGS: 'settings:get',
+  SAVE_SETTINGS: 'settings:save',
+  TEST_TELEGRAM: 'telegram:test',
+  START_SCANNING: 'scanning:start',
+  STOP_SCANNING: 'scanning:stop',
+  GET_STATS: 'stats:get',
+  GET_LOGS: 'logs:get',
+  EXPORT_LOGS: 'logs:export',
+  GET_MARKETS: 'markets:get',
+  PIN_MARKET: 'market:pin',
+  UNPIN_MARKET: 'market:unpin',
+  BLACKLIST_MARKET: 'market:blacklist',
+} as const;
 
 // Expose protected methods to renderer
 contextBridge.exposeInMainWorld('electronAPI', {
