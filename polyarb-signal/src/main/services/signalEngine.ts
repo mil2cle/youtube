@@ -13,7 +13,7 @@ import {
   AppSettings,
   MarketTier 
 } from '../../shared/types';
-import { DEFAULT_SETTINGS } from '../../shared/constants';
+import { DEFAULT_SETTINGS, RATE_LIMITS } from '../../shared/constants';
 import { clobClient } from './clobClient';
 import { logger } from '../utils/logger';
 
@@ -106,9 +106,13 @@ class SignalEngine extends EventEmitter {
     // เริ่ม scan ทุกตลาด แบบ stagger เพื่อไม่ให้ request พร้อมกัน
     const marketIds = Array.from(this.marketStates.keys());
     let delay = 0;
-    const staggerMs = 500; // เว้นระยะ 500ms ระหว่างการเริ่มสแกนแต่ละตลาด
+    const staggerMs = RATE_LIMITS.STAGGER_DELAY_MS; // เว้นระยะ 2000ms ระหว่างการเริ่มสแกนแต่ละตลาด
     
-    for (const marketId of marketIds) {
+    // จำกัดจำนวนตลาดที่สแกนพร้อมกันไม่เกิน 50 ตลาด
+    const maxConcurrent = 50;
+    const marketsToScan = marketIds.slice(0, maxConcurrent);
+    
+    for (const marketId of marketsToScan) {
       setTimeout(() => {
         if (this.isRunning) {
           this.startMarketScan(marketId);
@@ -117,7 +121,10 @@ class SignalEngine extends EventEmitter {
       delay += staggerMs;
     }
 
-    logger.info(`กำหนดเวลาเริ่มสแกน ${marketIds.length} ตลาด (เว้นระยะ ${staggerMs}ms)`);
+    logger.info(`กำหนดเวลาเริ่มสแกน ${marketsToScan.length}/${marketIds.length} ตลาด (เว้นระยะ ${staggerMs}ms)`);
+    if (marketIds.length > maxConcurrent) {
+      logger.warn(`⚠️ จำกัดการสแกนไว้ที่ ${maxConcurrent} ตลาดเพื่อป้องกัน rate limit`);
+    }
     this.emit('started');
   }
 

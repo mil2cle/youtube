@@ -36,9 +36,9 @@ export const DEFAULT_SETTINGS = {
     minTopAskSizeUsd: 100,
   },
   tiering: {
-    tierAMax: 20, // max 20 markets in tier A (reduced from 50)
-    tierAIntervalMs: 5000, // 5 seconds (increased from 3s)
-    tierBIntervalMs: 60000, // 60 seconds (increased from 30s)
+    tierAMax: 10, // max 10 markets in tier A (reduced further)
+    tierAIntervalMs: 10000, // 10 seconds (increased from 5s)
+    tierBIntervalMs: 120000, // 120 seconds / 2 minutes (increased from 60s)
     burstMinutes: 10,
     staleMs: 600000, // 10 minutes
     noNearArbWindowMs: 3600000, // 60 minutes
@@ -63,11 +63,12 @@ export const SCORING_WEIGHTS = {
 
 // Rate limiting
 export const RATE_LIMITS = {
-  GAMMA_MARKETS_PER_10S: 100,
-  CLOB_GENERAL_PER_10S: 100, // Reduced from 9000 to avoid rate limiting
-  MIN_REQUEST_INTERVAL_MS: 200, // Increased from 50ms to 200ms between requests
-  BACKOFF_BASE_MS: 2000,
+  GAMMA_MARKETS_PER_10S: 50,
+  CLOB_GENERAL_PER_10S: 30, // Reduced further to avoid rate limiting (was 100)
+  MIN_REQUEST_INTERVAL_MS: 500, // Increased to 500ms between requests (was 200ms)
+  BACKOFF_BASE_MS: 5000, // Increased backoff
   BACKOFF_MAX_MS: 60000,
+  STAGGER_DELAY_MS: 2000, // Delay between starting each market scan
 } as const;
 
 // Telegram
