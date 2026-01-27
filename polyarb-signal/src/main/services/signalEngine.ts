@@ -103,11 +103,21 @@ class SignalEngine extends EventEmitter {
     this.isRunning = true;
     logger.info('Signal engine เริ่มทำงาน');
 
-    // เริ่ม scan ทุกตลาด
-    for (const [marketId] of this.marketStates) {
-      this.startMarketScan(marketId);
+    // เริ่ม scan ทุกตลาด แบบ stagger เพื่อไม่ให้ request พร้อมกัน
+    const marketIds = Array.from(this.marketStates.keys());
+    let delay = 0;
+    const staggerMs = 500; // เว้นระยะ 500ms ระหว่างการเริ่มสแกนแต่ละตลาด
+    
+    for (const marketId of marketIds) {
+      setTimeout(() => {
+        if (this.isRunning) {
+          this.startMarketScan(marketId);
+        }
+      }, delay);
+      delay += staggerMs;
     }
 
+    logger.info(`กำหนดเวลาเริ่มสแกน ${marketIds.length} ตลาด (เว้นระยะ ${staggerMs}ms)`);
     this.emit('started');
   }
 

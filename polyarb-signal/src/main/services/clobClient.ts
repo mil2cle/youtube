@@ -76,8 +76,8 @@ class ClobClient {
 
       if (!response.ok) {
         if (response.status === 429) {
-          // Rate limited
-          logger.warn('CLOB API rate limited');
+          // Rate limited - wait and don't spam logs
+          await this.sleep(RATE_LIMITS.BACKOFF_BASE_MS);
           return null;
         }
         if (response.status === 404) {
