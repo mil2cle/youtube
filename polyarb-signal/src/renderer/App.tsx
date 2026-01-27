@@ -64,6 +64,7 @@ const App: React.FC = () => {
 
       // Setup event listeners
       window.electronAPI.onStatsUpdate((newStats: DashboardStats) => {
+        console.log('Stats update received:', newStats);
         setStats(newStats);
       });
 
@@ -76,6 +77,22 @@ const App: React.FC = () => {
         // Clear after 10 seconds
         setTimeout(() => setLatestSignal(null), 10000);
       });
+
+      // Poll for stats every 3 seconds as backup
+      const pollInterval = setInterval(async () => {
+        try {
+          const statsData = await window.electronAPI.getStats();
+          if (statsData) {
+            setStats(statsData);
+          }
+        } catch (error) {
+          console.error('Error polling stats:', error);
+        }
+      }, 3000);
+
+      return () => {
+        clearInterval(pollInterval);
+      };
     } else {
       console.log('electronAPI not available yet, waiting...');
       // Retry after a short delay
@@ -87,10 +104,6 @@ const App: React.FC = () => {
       }, 1000);
       return () => clearTimeout(timer);
     }
-
-    return () => {
-      // Cleanup listeners
-    };
   }, []);
 
   const loadInitialData = async () => {

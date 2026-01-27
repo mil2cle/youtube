@@ -30,8 +30,8 @@ export const DEFAULT_SETTINGS = {
     resendDelta: 0.003, // 0.3%
   },
   filters: {
-    minLiquidityUsd: 5000,
-    minVolume24hUsd: 2000,
+    minLiquidityUsd: 50000, // Increased from 5000 to reduce market count
+    minVolume24hUsd: 10000, // Increased from 2000 to reduce market count
     maxSpread: 0.03, // 3%
     minTopAskSizeUsd: 100,
   },
