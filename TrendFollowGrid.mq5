@@ -27,10 +27,15 @@
 //| Placeholder/Optional:                                              |
 //|   - UseLotScaling / LotScaleMode / LotScaleFactor (phase 2)        |
 //|   - UnwindOnlyWhenPriceNearVWAPPoints (optional enhancement)        |
+//|                                                                    |
+//| v1.01 Changes:                                                     |
+//|   - EMA/ATR ใช้ shift=1 (แท่งที่ปิดแล้ว) กันเทรนด์ repaint         |
+//|   - Pending maintenance: tolerance + modify cooldown               |
+//|   - ClampVolume() ทุกจุดที่ส่งคำสั่ง                                |
 //+------------------------------------------------------------------+
 #property copyright "One More Time (OMT)"
 #property link      ""
-#property version   "1.00"
+#property version   "1.01"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -161,6 +166,11 @@ input int                MaxPartialClosesPerCycle = 1;         // Max Partial Cl
 input ENUM_UNWIND_SELECTION UnwindSelectionMode = LARGEST_VOLUME_FIRST; // Unwind Selection Mode
 input int                UnwindOnlyWhenPriceNearVWAPPoints = 0; // Unwind Near VWAP Points (0=ปิด)
 
+// ==================== Pending Maintenance ====================
+input group "=== Pending Maintenance ==="
+input int                PendingTolerancePoints = 50;          // Pending Tolerance Points (ไม่ modify ถ้าต่างน้อยกว่านี้)
+input int                PendingModifyCooldownSec = 5;         // Pending Modify Cooldown Seconds
+
 //+------------------------------------------------------------------+
 //| Global Variables                                                  |
 //+------------------------------------------------------------------+
@@ -168,6 +178,7 @@ CTrade         trade;
 string         g_symbol;
 datetime       g_lastTradeTime;
 datetime       g_lastPartialCloseTime;
+datetime       g_lastPendingModifyTime;    // v1.01: cooldown สำหรับ pending modify
 double         g_peakEquity;
 bool           g_ddStopTriggered;
 int            g_emaHandle;
@@ -219,10 +230,11 @@ int OnInit()
    // --- Initialize globals ---
    g_lastTradeTime = 0;
    g_lastPartialCloseTime = 0;
+   g_lastPendingModifyTime = 0;
    g_peakEquity = AccountInfoDouble(ACCOUNT_EQUITY);
    g_ddStopTriggered = false;
    
-   Print("TrendFollowGrid EA initialized on ", g_symbol, " | Magic: ", MagicNumber);
+   Print("TrendFollowGrid EA v1.01 initialized on ", g_symbol, " | Magic: ", MagicNumber);
    return(INIT_SUCCEEDED);
 }
 
@@ -269,7 +281,7 @@ void OnTick()
       }
    }
    
-   // --- Get trend direction ---
+   // --- Get trend direction (shift=1, แท่งที่ปิดแล้ว) ---
    ENUM_TREND_DIRECTION trend = GetTrendDirection();
    
    // --- Basket TP check (always runs, even during DD stop) ---
@@ -378,6 +390,44 @@ bool CooldownOK()
 }
 
 //+------------------------------------------------------------------+
+//| HELPER: Pending Modify Cooldown Check                             |
+//+------------------------------------------------------------------+
+bool PendingModifyCooldownOK()
+{
+   if(PendingModifyCooldownSec <= 0) return true;
+   return (TimeCurrent() - g_lastPendingModifyTime >= PendingModifyCooldownSec);
+}
+
+//+------------------------------------------------------------------+
+//| HELPER: Clamp Volume to broker limits                             |
+//| ใช้ทุกครั้งก่อนส่งคำสั่ง เพื่อให้ volume ถูกต้องตาม                  |
+//| SYMBOL_VOLUME_MIN / SYMBOL_VOLUME_MAX / SYMBOL_VOLUME_STEP        |
+//+------------------------------------------------------------------+
+double ClampVolume(double vol)
+{
+   double minLot  = SymbolInfoDouble(g_symbol, SYMBOL_VOLUME_MIN);
+   double maxLot  = SymbolInfoDouble(g_symbol, SYMBOL_VOLUME_MAX);
+   double stepLot = SymbolInfoDouble(g_symbol, SYMBOL_VOLUME_STEP);
+   
+   if(stepLot > 0)
+      vol = MathFloor(vol / stepLot) * stepLot;
+   
+   vol = MathMax(vol, minLot);
+   vol = MathMin(vol, maxLot);
+   
+   return NormalizeDouble(vol, 8);
+}
+
+//+------------------------------------------------------------------+
+//| HELPER: Check if volume is valid (>= min lot)                     |
+//+------------------------------------------------------------------+
+bool IsVolumeValid(double vol)
+{
+   double minLot = SymbolInfoDouble(g_symbol, SYMBOL_VOLUME_MIN);
+   return (vol >= minLot);
+}
+
+//+------------------------------------------------------------------+
 //| HELPER: Count Positions By Type                                   |
 //+------------------------------------------------------------------+
 int CountPositionsByType(ENUM_POSITION_TYPE posType)
@@ -429,19 +479,19 @@ double FloatingProfitByType(ENUM_POSITION_TYPE posType)
       {
          profit += PositionGetDouble(POSITION_PROFIT)
                  + PositionGetDouble(POSITION_SWAP)
-                 + (2.0 * PositionGetDouble(POSITION_COMMISSION)); // commission is per side
+                 + (2.0 * PositionGetDouble(POSITION_COMMISSION));
       }
    }
    return profit;
 }
 
 //+------------------------------------------------------------------+
-//| HELPER: Get EMA value                                             |
+//| HELPER: Get EMA value (shift=1, แท่งที่ปิดแล้ว)                    |
 //+------------------------------------------------------------------+
 double GetEMA()
 {
    double buf[1];
-   if(CopyBuffer(g_emaHandle, 0, 0, 1, buf) <= 0)
+   if(CopyBuffer(g_emaHandle, 0, 1, 1, buf) <= 0)  // shift=1
    {
       Print("WARNING: Failed to get EMA value");
       return 0;
@@ -450,12 +500,12 @@ double GetEMA()
 }
 
 //+------------------------------------------------------------------+
-//| HELPER: Get ATR value (grid)                                      |
+//| HELPER: Get ATR value for grid (shift=1, แท่งที่ปิดแล้ว)           |
 //+------------------------------------------------------------------+
 double GetATR()
 {
    double buf[1];
-   if(CopyBuffer(g_atrHandle, 0, 0, 1, buf) <= 0)
+   if(CopyBuffer(g_atrHandle, 0, 1, 1, buf) <= 0)  // shift=1
    {
       Print("WARNING: Failed to get ATR value");
       return 0;
@@ -464,12 +514,12 @@ double GetATR()
 }
 
 //+------------------------------------------------------------------+
-//| HELPER: Get ATR Pause value                                       |
+//| HELPER: Get ATR Pause value (shift=1, แท่งที่ปิดแล้ว)              |
 //+------------------------------------------------------------------+
 double GetATRPause()
 {
    double buf[1];
-   if(CopyBuffer(g_atrPauseHandle, 0, 0, 1, buf) <= 0)
+   if(CopyBuffer(g_atrPauseHandle, 0, 1, 1, buf) <= 0)  // shift=1
    {
       Print("WARNING: Failed to get ATR Pause value");
       return 0;
@@ -597,18 +647,30 @@ int CountPendingsBySide(ENUM_POSITION_TYPE posType)
 }
 
 //+------------------------------------------------------------------+
-//| HELPER: Maintain One Pending By Side                              |
+//| HELPER: Maintain One Pending By Side (v1.01 - smart tolerance)    |
+//|                                                                    |
+//| Logic:                                                             |
+//|   1. วนหา pending ที่ตรง type ของ EA (magic+symbol)                |
+//|   2. ถ้ามีมากกว่า 1 => ลบตัวเกินให้เหลือ 1                         |
+//|   3. ถ้ามี 1 ตัว:                                                   |
+//|      - ถ้าราคาต่างจากเป้า < PendingTolerancePoints => ไม่ทำอะไร    |
+//|      - ถ้าต่างมากกว่า => modify (ถ้า cooldown ผ่าน)                 |
+//|   4. ถ้าไม่มีเลย => วาง pending ใหม่                               |
 //+------------------------------------------------------------------+
-void MaintainOnePendingBySide(ENUM_POSITION_TYPE posType, double price, double lot)
+void MaintainOnePendingBySide(ENUM_POSITION_TYPE posType, double targetPrice, double lot)
 {
    ENUM_ORDER_TYPE limitType = (posType == POSITION_TYPE_BUY) ? ORDER_TYPE_BUY_LIMIT : ORDER_TYPE_SELL_LIMIT;
    double point = SymbolInfoDouble(g_symbol, SYMBOL_POINT);
    int digits = (int)SymbolInfoInteger(g_symbol, SYMBOL_DIGITS);
    
-   price = NormalizeDouble(price, digits);
+   targetPrice = NormalizeDouble(targetPrice, digits);
+   lot = ClampVolume(lot);
    
-   // Check if there's already a pending order at the right price
-   bool found = false;
+   // --- Collect all our pending tickets of this type ---
+   ulong  foundTickets[];
+   double foundPrices[];
+   int    foundCount = 0;
+   
    for(int i = OrdersTotal() - 1; i >= 0; i--)
    {
       ulong ticket = OrderGetTicket(i);
@@ -617,40 +679,78 @@ void MaintainOnePendingBySide(ENUM_POSITION_TYPE posType, double price, double l
       if(OrderGetInteger(ORDER_MAGIC) != MagicNumber) continue;
       if((ENUM_ORDER_TYPE)OrderGetInteger(ORDER_TYPE) == limitType)
       {
-         double existingPrice = NormalizeDouble(OrderGetDouble(ORDER_PRICE_OPEN), digits);
-         if(MathAbs(existingPrice - price) < point * 2)
-         {
-            found = true; // Already have a pending at this price
-         }
-         else
-         {
-            // Wrong price, delete it
-            trade.OrderDelete(ticket);
-         }
+         ArrayResize(foundTickets, foundCount + 1);
+         ArrayResize(foundPrices, foundCount + 1);
+         foundTickets[foundCount] = ticket;
+         foundPrices[foundCount]  = NormalizeDouble(OrderGetDouble(ORDER_PRICE_OPEN), digits);
+         foundCount++;
       }
    }
    
-   // Place new pending if not found
-   if(!found)
+   // --- Case: no pending exists => place new ---
+   if(foundCount == 0)
    {
+      if(!PendingModifyCooldownOK()) return;
+      
       if(posType == POSITION_TYPE_BUY)
-         trade.BuyLimit(lot, price, g_symbol, 0, 0, ORDER_TIME_GTC, 0, "TFG_BuyGrid");
+         trade.BuyLimit(lot, targetPrice, g_symbol, 0, 0, ORDER_TIME_GTC, 0, "TFG_BuyGrid");
       else
-         trade.SellLimit(lot, price, g_symbol, 0, 0, ORDER_TIME_GTC, 0, "TFG_SellGrid");
+         trade.SellLimit(lot, targetPrice, g_symbol, 0, 0, ORDER_TIME_GTC, 0, "TFG_SellGrid");
+      
+      g_lastPendingModifyTime = TimeCurrent();
+      return;
+   }
+   
+   // --- Case: more than 1 pending => keep first, delete rest ---
+   if(foundCount > 1)
+   {
+      for(int i = 1; i < foundCount; i++)
+         trade.OrderDelete(foundTickets[i]);
+   }
+   
+   // --- Case: exactly 1 pending => check tolerance ---
+   ulong  existingTicket = foundTickets[0];
+   double existingPrice  = foundPrices[0];
+   double diffPoints     = MathAbs(existingPrice - targetPrice) / point;
+   
+   // ถ้าต่างน้อยกว่า tolerance => ไม่ต้อง modify
+   if(diffPoints < PendingTolerancePoints)
+      return;
+   
+   // ต่างมากกว่า tolerance => modify (ถ้า cooldown ผ่าน)
+   if(!PendingModifyCooldownOK()) return;
+   
+   // Modify pending order to new price
+   if(trade.OrderModify(existingTicket, targetPrice, 0, 0, ORDER_TIME_GTC, 0))
+   {
+      g_lastPendingModifyTime = TimeCurrent();
+   }
+   else
+   {
+      // ถ้า modify fail => ลบแล้ววางใหม่
+      Print("OrderModify failed (err=", GetLastError(), "), delete+replace");
+      trade.OrderDelete(existingTicket);
+      
+      if(posType == POSITION_TYPE_BUY)
+         trade.BuyLimit(lot, targetPrice, g_symbol, 0, 0, ORDER_TIME_GTC, 0, "TFG_BuyGrid");
+      else
+         trade.SellLimit(lot, targetPrice, g_symbol, 0, 0, ORDER_TIME_GTC, 0, "TFG_SellGrid");
+      
+      g_lastPendingModifyTime = TimeCurrent();
    }
 }
 
 //+------------------------------------------------------------------+
-//| HELPER: Get Trend Direction                                       |
+//| HELPER: Get Trend Direction (shift=1, แท่งที่ปิดแล้ว)              |
 //+------------------------------------------------------------------+
 ENUM_TREND_DIRECTION GetTrendDirection()
 {
-   double ema = GetEMA();
+   double ema = GetEMA();  // shift=1 inside
    if(ema == 0) return TREND_NEUTRAL;
    
-   // Get close price on TrendTF
+   // Get close price on TrendTF, shift=1 (แท่งที่ปิดแล้ว)
    double close[];
-   if(CopyClose(g_symbol, TrendTF, 0, 1, close) <= 0)
+   if(CopyClose(g_symbol, TrendTF, 1, 1, close) <= 0)  // shift=1
       return TREND_NEUTRAL;
    
    double upperBand = ema * (1.0 + NeutralBufferPercent);
@@ -665,19 +765,19 @@ ENUM_TREND_DIRECTION GetTrendDirection()
 }
 
 //+------------------------------------------------------------------+
-//| HELPER: Volatility Paused                                         |
+//| HELPER: Volatility Paused (shift=1)                               |
 //+------------------------------------------------------------------+
 bool VolatilityPaused()
 {
    if(!EnableVolatilityPause) return false;
    if(ATRPauseThresholdDollar <= 0) return false;
    
-   double atr = GetATRPause();
+   double atr = GetATRPause();  // shift=1 inside
    return (atr > ATRPauseThresholdDollar);
 }
 
 //+------------------------------------------------------------------+
-//| HELPER: Get Lot (with placeholder for scaling)                    |
+//| HELPER: Get Lot (with placeholder for scaling + ClampVolume)      |
 //+------------------------------------------------------------------+
 double GetLot(int positionCount)
 {
@@ -692,7 +792,6 @@ double GetLot(int positionCount)
             lot = BaseLot * (1.0 + LotScaleFactor * positionCount);
             break;
          case LOT_FIBO:
-            // Fibonacci-like scaling placeholder
             lot = BaseLot * MathPow(LotScaleFactor, positionCount);
             break;
          default: // LOT_FIXED
@@ -701,18 +800,7 @@ double GetLot(int positionCount)
       }
    }
    
-   // Normalize lot
-   double minLot  = SymbolInfoDouble(g_symbol, SYMBOL_VOLUME_MIN);
-   double maxLot  = SymbolInfoDouble(g_symbol, SYMBOL_VOLUME_MAX);
-   double stepLot = SymbolInfoDouble(g_symbol, SYMBOL_VOLUME_STEP);
-   
-   if(stepLot > 0)
-      lot = MathFloor(lot / stepLot) * stepLot;
-   
-   lot = MathMax(lot, minLot);
-   lot = MathMin(lot, maxLot);
-   
-   return NormalizeDouble(lot, 8);
+   return ClampVolume(lot);
 }
 
 //+------------------------------------------------------------------+
@@ -781,7 +869,7 @@ void ProcessBuySide()
    // Validate price
    if(gridPrice <= 0) return;
    
-   // Maintain one pending
+   // Maintain one pending (smart tolerance + cooldown)
    MaintainOnePendingBySide(POSITION_TYPE_BUY, gridPrice, lot);
 }
 
@@ -847,7 +935,7 @@ void ProcessSellSide()
    int digits = (int)SymbolInfoInteger(g_symbol, SYMBOL_DIGITS);
    gridPrice = NormalizeDouble(gridPrice, digits);
    
-   // Maintain one pending
+   // Maintain one pending (smart tolerance + cooldown)
    MaintainOnePendingBySide(POSITION_TYPE_SELL, gridPrice, lot);
 }
 
@@ -951,19 +1039,18 @@ void EmergencyReduceLargest()
       }
    }
    
-   if(largestTicket > 0 && largestVol > SymbolInfoDouble(g_symbol, SYMBOL_VOLUME_MIN))
+   if(largestTicket > 0)
    {
       double minLot = SymbolInfoDouble(g_symbol, SYMBOL_VOLUME_MIN);
+      if(largestVol <= minLot) return;  // ปิดไม่ได้อีกแล้ว
+      
       double closeVol = largestVol - minLot;
-      double stepLot = SymbolInfoDouble(g_symbol, SYMBOL_VOLUME_STEP);
+      closeVol = ClampVolume(closeVol);
       
-      if(stepLot > 0)
-         closeVol = MathFloor(closeVol / stepLot) * stepLot;
-      
-      if(closeVol >= minLot)
+      if(IsVolumeValid(closeVol))
       {
          if(trade.PositionClosePartial(largestTicket, closeVol))
-            Print("Emergency partial close: ticket=", largestTicket, " closed=", closeVol);
+            Print("Emergency partial close: ticket=", largestTicket, " closed=", DoubleToString(closeVol,8));
       }
    }
 }
@@ -1055,8 +1142,6 @@ void ProcessPartialClose(ENUM_POSITION_TYPE posType)
    
    // 6) Process partial closes
    int closedCount = 0;
-   double minLot  = SymbolInfoDouble(g_symbol, SYMBOL_VOLUME_MIN);
-   double stepLot = SymbolInfoDouble(g_symbol, SYMBOL_VOLUME_STEP);
    
    for(int i = 0; i < eligibleCount && closedCount < MaxPartialClosesPerCycle; i++)
    {
@@ -1082,11 +1167,22 @@ void ProcessPartialClose(ENUM_POSITION_TYPE posType)
             volumeToClose = volumes[i] - KeepMinLotPerPosition;
       }
       
-      // Normalize volume
-      if(stepLot > 0)
-         volumeToClose = MathFloor(volumeToClose / stepLot) * stepLot;
+      // Clamp volume to broker limits
+      volumeToClose = ClampVolume(volumeToClose);
       
-      if(volumeToClose < minLot) continue;
+      // Validate: ถ้า clamp แล้ว volume เหลือน้อยกว่า min lot => skip
+      if(!IsVolumeValid(volumeToClose)) continue;
+      
+      // Safety check: ปิดแล้วต้องไม่เหลือน้อยกว่า min lot (ถ้าไม่ปิดหมด)
+      double remaining = volumes[i] - volumeToClose;
+      double minLot = SymbolInfoDouble(g_symbol, SYMBOL_VOLUME_MIN);
+      if(remaining > 0 && remaining < minLot)
+      {
+         // ปรับ volumeToClose ลงเพื่อให้เหลืออย่างน้อย minLot
+         volumeToClose = volumes[i] - minLot;
+         volumeToClose = ClampVolume(volumeToClose);
+         if(!IsVolumeValid(volumeToClose)) continue;
+      }
       
       // Execute partial close
       if(trade.PositionClosePartial(tickets[i], volumeToClose))
@@ -1105,6 +1201,11 @@ void ProcessPartialClose(ENUM_POSITION_TYPE posType)
 void SortUnwindCandidates(ulong &tickets[], double &volumes[], double &profits[], 
                           double &openPrices[], int count, ENUM_POSITION_TYPE posType)
 {
+   // Pre-compute VWAP once for FARTHEST_FROM_VWAP_FIRST mode
+   double vwap = 0;
+   if(UnwindSelectionMode == FARTHEST_FROM_VWAP_FIRST)
+      vwap = GetVWAPBySide(posType);
+   
    // Simple bubble sort (small arrays)
    for(int i = 0; i < count - 1; i++)
    {
@@ -1124,7 +1225,6 @@ void SortUnwindCandidates(ulong &tickets[], double &volumes[], double &profits[]
                
             case FARTHEST_FROM_VWAP_FIRST:
             {
-               double vwap = GetVWAPBySide(posType);
                double dist1 = MathAbs(openPrices[j] - vwap);
                double dist2 = MathAbs(openPrices[j+1] - vwap);
                doSwap = (dist1 < dist2);
